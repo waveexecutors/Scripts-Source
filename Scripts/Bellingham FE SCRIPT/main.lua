@@ -315,20 +315,20 @@ local function playIntro()
         -- Animation Sequence: Slide down every 1 second
         local slideTweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         
-        task.wait(0.5)
+        task.wait(0.3)
         TweenService:Create(b1, slideTweenInfo, {Position = UDim2.new(0, 0, 0, 0)}):Play()
         
-        task.wait(0.5)
+        task.wait(0.3)
         TweenService:Create(b2, slideTweenInfo, {Position = UDim2.new(0, 0, 0.25, 0)}):Play()
         
-        task.wait(0.5)
+        task.wait(0.3)
         TweenService:Create(b3, slideTweenInfo, {Position = UDim2.new(0, 0, 0.50, 0)}):Play()
         
-        task.wait(0.5)
+        task.wait(0.3)
         TweenService:Create(b4, slideTweenInfo, {Position = UDim2.new(0, 0, 0.75, 0)}):Play()
         
         -- Wait for visual to sit, then fade out
-        task.wait(2)
+        task.wait(1)
         
         local fadeFrame = Instance.new("Frame")
         fadeFrame.Size = UDim2.new(1, 0, 1, 0)
