@@ -330,7 +330,7 @@ local audioUrl = "https://github.com/waveexecutors/Scripts-Source/raw/refs/heads
 local BLOCK_1_DELAY = 1.0    -- Block 1: 1 second
 local BLOCK_2_DELAY = 0.55   -- Block 2: 0.55 seconds
 local BLOCK_3_DELAY = 0.55   -- Block 3: 0.55 seconds
-local BLOCK_4_DELAY = 0.8    -- Block 4: 0.8 seconds
+local BLOCK_4_DELAY = 0.75    -- Block 4: 0.8 seconds
 
 local currentIntroGui = nil
 local isIntroPlaying = false
@@ -360,7 +360,7 @@ local function buildIntroBlocks(container)
     local t1 = Instance.new("TextLabel")
     t1.Size = UDim2.new(1, 0, 1, 0)
     t1.BackgroundTransparency = 1
-    t1.Text = "SCRIPT LAND"
+    t1.Text = "DELTA SCRIPTER"
     t1.TextScaled = true
     t1.TextColor3 = Color3.fromRGB(0, 0, 0)
     t1.Font = Enum.Font.GothamBlack
@@ -377,12 +377,12 @@ local function buildIntroBlocks(container)
     t2.Font = Enum.Font.GothamBlack
     t2.Parent = b2
     
-    -- Block 3: Roblox Logo
+    -- Block 3: Delta
     local b3 = createBlock()
-    local img3 = Instance.new("ImageLabel")
+    local img3 = Instance.new("TextLabel")
     img3.Size = UDim2.new(1, 0, 1, 0)
     img3.BackgroundTransparency = 1
-    img3.Image = "rbxassetid://657238199"
+    img3.Text = "ROBLOX"
     img3.ScaleType = Enum.ScaleType.Stretch
     img3.Parent = b3
     
