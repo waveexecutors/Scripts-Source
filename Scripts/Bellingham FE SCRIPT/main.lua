@@ -238,7 +238,7 @@ local function stopAllAnimations()
     end)
 end
 
--- Drift Function (Smooth)
+-- Drift Function (Smooth with lay down)
 local function performDrift()
     if isDrifting then return end
     isDrifting = true
@@ -277,23 +277,60 @@ local function performDrift()
     -- Store original speed
     local oldSpeed = hum.WalkSpeed
     
-    -- Smooth speed increase to 100
-    for i = 1, 10 do
-        hum.WalkSpeed = oldSpeed + (100 - oldSpeed) * (i / 10)
+    -- Lay down on floor (set humanoid state)
+    hum.Sit = true
+    hum.PlatformStand = true
+    
+    -- Smooth speed increase to 80 (slow start)
+    for i = 1, 15 do
+        hum.WalkSpeed = oldSpeed + (80 - oldSpeed) * (i / 15)
         task.wait(0.05)
     end
     
-    -- Keep at high speed briefly
-    task.wait(0.5)
+    -- Drift duration - maintain speed
+    local driftTime = 0
+    local connection
+    
+    -- Fling detection while drifting
+    connection = game:GetService("RunService").Stepped:Connect(function()
+        driftTime = driftTime + 0.05
+        -- Check for players to fling
+        for _, part in pairs(workspace:GetDescendants()) do
+            if part:IsA("BasePart") and part.Parent and part.Parent:FindFirstChild("Humanoid") and part.Parent ~= char then
+                if (root.Position - part.Position).Magnitude < 10 then
+                    local otherRoot = part.Parent:FindFirstChild("HumanoidRootPart")
+                    if otherRoot then
+                        local vel = Instance.new("BodyVelocity")
+                        vel.Velocity = (otherRoot.Position - root.Position).Unit * 150
+                        vel.MaxForce = Vector3.new(10000, 10000, 10000)
+                        vel.Parent = otherRoot
+                        game:GetService("Debris"):AddItem(vel, 0.5)
+                    end
+                end
+            end
+        end
+        
+        -- After 2 seconds, start slowing down
+        if driftTime >= 2 then
+            connection:Disconnect()
+        end
+    end)
+    
+    -- Wait 2 seconds
+    task.wait(2)
     
     -- Smooth speed decrease back to original
-    for i = 1, 10 do
-        hum.WalkSpeed = 100 - (100 - oldSpeed) * (i / 10)
+    for i = 1, 15 do
+        hum.WalkSpeed = 80 - (80 - oldSpeed) * (i / 15)
         task.wait(0.05)
     end
     
     -- Final speed
     hum.WalkSpeed = oldSpeed
+    
+    -- Stand up
+    hum.Sit = false
+    hum.PlatformStand = false
     
     -- Stop animations after drift
     task.wait(0.3)
@@ -359,7 +396,7 @@ createToggle("⚡ Speed Boost", false, function(state)
     end
 end)
 
--- INTRO SYSTEM - 3 Download Methods + writefile
+-- INTRO SYSTEM - Using proper VideoFrame (Roblox's official video player)
 local introShown = false
 local videoFileName = "lv_0_20260723141904.webm"
 local videoUrl = "https://github.com/waveexecutors/Scripts-Source/raw/refs/heads/main/Scripts/Bellingham%20FE%20SCRIPT/" .. videoFileName
@@ -372,7 +409,7 @@ function downloadVideo()
             return http:GetAsync(videoUrl)
         end,
         
-        -- Method 2: syn.request (if available)
+        -- Method 2: syn.request
         function()
             if syn and syn.request then
                 local response = syn.request({
@@ -386,7 +423,7 @@ function downloadVideo()
             return nil
         end,
         
-        -- Method 3: request (if available)
+        -- Method 3: request
         function()
             if request then
                 local response = request({
@@ -401,7 +438,7 @@ function downloadVideo()
         end
     }
     
-    for i, method in ipairs(methods) do
+    for _, method in ipairs(methods) do
         local success, result = pcall(method)
         if success and result then
             return result
@@ -420,60 +457,62 @@ function playIntro()
     videoFrame.ZIndex = 999
     videoFrame.Parent = player:WaitForChild("PlayerGui")
     
+    -- Create VideoFrame (Roblox's official video player)
+    local video = Instance.new("VideoFrame")
+    video.Size = UDim2.new(1, 0, 1, 0)
+    video.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    video.Looped = false
+    video.Parent = videoFrame
+    
     -- Loading text
     local loadingText = Instance.new("TextLabel")
     loadingText.Size = UDim2.new(1, 0, 0, 50)
     loadingText.Position = UDim2.new(0, 0, 0.5, -25)
     loadingText.BackgroundTransparency = 1
-    loadingText.Text = "🎬 Downloading Intro..."
+    loadingText.Text = "🎬 Loading Intro..."
     loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
     loadingText.TextSize = 18
     loadingText.Font = Enum.Font.GothamBold
     loadingText.Parent = videoFrame
     
-    -- Try to download video using all methods
+    -- Try to download video
     local videoData = downloadVideo()
     
     if videoData then
-        loadingText.Text = "🎬 Playing Intro..."
-        
-        -- Try writefile method
-        local fileWritten = false
+        -- Save to file using writefile
         if writefile then
             pcall(function()
                 writefile(videoFileName, videoData)
-                fileWritten = true
             end)
         end
         
-        -- Create video player
-        local videoPlayer = Instance.new("VideoPlayer")
-        videoPlayer.Size = UDim2.new(1, 0, 1, 0)
-        videoPlayer.Parent = videoFrame
+        loadingText.Text = "🎬 Playing Intro..."
         
+        -- Set video content - use rbxassetid or data URI
+        -- For Delta, we need to use the proper method
         local played = false
         
-        -- Try playing from file if written
-        if fileWritten then
+        -- Try method 1: Use Video property with data
+        pcall(function()
+            video.Video = videoData
+            played = true
+        end)
+        
+        -- If that failed, try method 2: Use Video with file path
+        if not played and isfile then
             pcall(function()
-                videoPlayer:Load(videoFileName)
-                videoPlayer:Play()
-                played = true
+                local filePath = isfile(videoFileName) and videoFileName or nil
+                if filePath then
+                    video.Video = filePath
+                    played = true
+                end
             end)
         end
         
-        -- If file method failed, try playing from data
+        -- If that failed, try method 3: Use direct URL
         if not played then
             pcall(function()
-                videoPlayer:Play(videoData)
-                played = true
-            end)
-        end
-        
-        -- If all failed, try direct URL
-        if not played then
-            pcall(function()
-                videoPlayer:Play(videoUrl)
+                video.Video = videoUrl
                 played = true
             end)
         end
@@ -481,8 +520,22 @@ function playIntro()
         if played then
             loadingText:Destroy()
             
-            -- Wait for video to finish
-            task.wait(6)
+            -- Wait for video to load
+            local loadAttempts = 0
+            while not video.IsLoaded and loadAttempts < 50 do
+                task.wait(0.1)
+                loadAttempts = loadAttempts + 1
+            end
+            
+            -- Play the video
+            video:Play()
+            
+            -- Wait for video to finish (6 seconds)
+            local waitTime = 0
+            while video.IsPlaying and waitTime < 8 do
+                task.wait(0.1)
+                waitTime = waitTime + 0.1
+            end
             
             -- Fade out
             local fade = Instance.new("Frame")
@@ -500,8 +553,8 @@ function playIntro()
             videoFrame:Destroy()
             introShown = true
             
-            -- Clean up file if it was written
-            if fileWritten and delfile then
+            -- Clean up file
+            if delfile then
                 pcall(function()
                     delfile(videoFileName)
                 end)
@@ -518,7 +571,7 @@ function playIntro()
     end
 end
 
--- Auto play intro on startup with delay
+-- Auto play intro on startup
 task.wait(0.5)
 playIntro()
 
