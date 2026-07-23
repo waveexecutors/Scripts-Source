@@ -7,22 +7,22 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Speed variables
+-- Speed variables (using correct Humanoid properties)
 local originalSpeed = {
-    Pace = humanoid.WalkSpeed,
-    Acceleration = humanoid.Acceleration,
-    Speed = humanoid.WalkSpeed
+    WalkSpeed = humanoid.WalkSpeed,
+    JumpPower = humanoid.JumpPower
 }
 
 -- GUI Creation
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "BellinghamGUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
 
 -- Main Frame (Draggable, Minizable, Closable)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 180, 0, 250)
-mainFrame.Position = UDim2.new(0.5, -90, 0.5, -125)
+mainFrame.Size = UDim2.new(0, 180, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -90, 0.5, -140)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BackgroundTransparency = 0.15
 mainFrame.BorderSizePixel = 0
@@ -43,6 +43,20 @@ gradient.Parent = mainFrame
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 12)
 corner.Parent = mainFrame
+
+-- Shadow effect
+local shadow = Instance.new("Frame")
+shadow.Size = UDim2.new(1, 4, 1, 4)
+shadow.Position = UDim2.new(0, -2, 0, -2)
+shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+shadow.BackgroundTransparency = 0.5
+shadow.BorderSizePixel = 0
+shadow.ZIndex = -1
+shadow.Parent = mainFrame
+
+local shadowCorner = Instance.new("UICorner")
+shadowCorner.CornerRadius = UDim.new(0, 14)
+shadowCorner.Parent = shadow
 
 -- Title Bar
 local titleBar = Instance.new("Frame")
@@ -110,7 +124,7 @@ contentFrame.Parent = mainFrame
 
 -- Scrollable UI
 local uiList = Instance.new("UIListLayout")
-uiList.Padding = UDim.new(0, 8)
+uiList.Padding = UDim.new(0, 6)
 uiList.FillDirection = Enum.FillDirection.Vertical
 uiList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 uiList.VerticalAlignment = Enum.VerticalAlignment.Top
@@ -119,19 +133,27 @@ uiList.Parent = contentFrame
 -- Button Creation Function
 local function createButton(text, callback, color)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 150, 0, 35)
+    btn.Size = UDim2.new(0, 150, 0, 32)
     btn.BackgroundColor3 = color or Color3.fromRGB(50, 50, 80)
     btn.BackgroundTransparency = 0.2
     btn.BorderSizePixel = 0
     btn.Text = text
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 13
+    btn.TextSize = 12
     btn.Font = Enum.Font.GothamMedium
     btn.Parent = contentFrame
     
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 8)
     btnCorner.Parent = btn
+    
+    -- Hover effect
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundTransparency = 0.1
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundTransparency = 0.2
+    end)
     
     btn.MouseButton1Click:Connect(callback)
     return btn
@@ -140,22 +162,22 @@ end
 -- Toggle Creation Function
 local function createToggle(text, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 150, 0, 35)
+    frame.Size = UDim2.new(0, 150, 0, 32)
     frame.BackgroundTransparency = 1
     frame.Parent = contentFrame
     
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Size = UDim2.new(0.65, 0, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = text
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 13
+    label.TextSize = 12
     label.Font = Enum.Font.GothamMedium
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
     
     local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(0, 35, 0, 25)
+    toggleBtn.Size = UDim2.new(0, 35, 0, 22)
     toggleBtn.Position = UDim2.new(0.75, 0, 0.15, 0)
     toggleBtn.BackgroundColor3 = default and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(80, 80, 80)
     toggleBtn.BorderSizePixel = 0
@@ -216,8 +238,8 @@ local function performDrift()
     track1:Play()
     track2:Play()
     
-    -- Drift effect
-    local originalSpeed = hum.WalkSpeed
+    -- Drift effect (increase speed)
+    local oldSpeed = hum.WalkSpeed
     hum.WalkSpeed = 100
     
     -- Fling detection
@@ -228,11 +250,11 @@ local function performDrift()
                 if (root.Position - part.Position).Magnitude < 8 then
                     local otherRoot = part.Parent:FindFirstChild("HumanoidRootPart")
                     if otherRoot then
-                        local velocity = Instance.new("BodyVelocity")
-                        velocity.Velocity = (otherRoot.Position - root.Position).Unit * 100
-                        velocity.MaxForce = Vector3.new(10000, 10000, 10000)
-                        velocity.Parent = otherRoot
-                        game:GetService("Debris"):AddItem(velocity, 0.5)
+                        local vel = Instance.new("BodyVelocity")
+                        vel.Velocity = (otherRoot.Position - root.Position).Unit * 120
+                        vel.MaxForce = Vector3.new(10000, 10000, 10000)
+                        vel.Parent = otherRoot
+                        game:GetService("Debris"):AddItem(vel, 0.5)
                     end
                 end
             end
@@ -242,7 +264,7 @@ local function performDrift()
     wait(2)
     track1:Stop()
     track2:Stop()
-    hum.WalkSpeed = originalSpeed
+    hum.WalkSpeed = oldSpeed
     connection:Disconnect()
 end
 
@@ -263,7 +285,7 @@ local function performCelebration(danceType)
         anim.AnimationId = "rbxassetid://" .. id
         local track = hum:LoadAnimation(anim)
         track:Play()
-        wait(0.1)
+        wait(0.15)
     end
 end
 
@@ -275,10 +297,6 @@ createButton("⚡ Drift", performDrift, Color3.fromRGB(200, 150, 50))
 createButton("🎉 Dance 1", function() performCelebration(1) end, Color3.fromRGB(50, 150, 200))
 createButton("🎉 Dance 2", function() performCelebration(2) end, Color3.fromRGB(200, 50, 150))
 createButton("🔄 Replay Intro", function()
-    -- Replay intro logic will be handled by the intro system
-    if introVideo then
-        introVideo:Destroy()
-    end
     playIntro()
 end, Color3.fromRGB(100, 200, 50))
 
@@ -289,63 +307,93 @@ createToggle("⚡ Speed Boost", false, function(state)
     local hum = char:WaitForChild("Humanoid")
     if state then
         hum.WalkSpeed = 80
-        hum.Acceleration = 81
     else
-        hum.WalkSpeed = originalSpeed.Speed
-        hum.Acceleration = originalSpeed.Acceleration
+        hum.WalkSpeed = originalSpeed.WalkSpeed
     end
 end)
 
 -- Intro System
-local introVideo = nil
+local introShown = false
 
 function playIntro()
-    -- Download and play intro
-    local url = "https://github.com/waveexecutors/Scripts-Source/raw/refs/heads/main/Scripts/Bellingham%20FE%20SCRIPT/lv_0_20260723141904.webm"
+    if introShown then
+        -- If already shown, just replay
+        local videoFrame = player.PlayerGui:FindFirstChild("IntroVideoFrame")
+        if videoFrame then videoFrame:Destroy() end
+    end
     
-    -- Create fullscreen video player
     local videoFrame = Instance.new("Frame")
+    videoFrame.Name = "IntroVideoFrame"
     videoFrame.Size = UDim2.new(1, 0, 1, 0)
     videoFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     videoFrame.ZIndex = 999
     videoFrame.Parent = player:WaitForChild("PlayerGui")
     
-    -- Create VideoPlayer
-    local videoPlayer = Instance.new("VideoPlayer")
-    videoPlayer.Size = UDim2.new(1, 0, 1, 0)
-    videoPlayer.Parent = videoFrame
+    -- Create a loading text
+    local loadingText = Instance.new("TextLabel")
+    loadingText.Size = UDim2.new(1, 0, 0, 50)
+    loadingText.Position = UDim2.new(0, 0, 0.5, -25)
+    loadingText.BackgroundTransparency = 1
+    loadingText.Text = "🎬 Loading Intro..."
+    loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    loadingText.TextSize = 20
+    loadingText.Font = Enum.Font.GothamBold
+    loadingText.Parent = videoFrame
     
-    -- Attempt to play video
-    local success, err = pcall(function()
+    -- Try to play the video using different methods for Delta
+    local success = pcall(function()
+        -- Attempt 1: VideoPlayer
+        local videoPlayer = Instance.new("VideoPlayer")
+        videoPlayer.Size = UDim2.new(1, 0, 1, 0)
+        videoPlayer.Parent = videoFrame
+        
+        local url = "https://github.com/waveexecutors/Scripts-Source/raw/refs/heads/main/Scripts/Bellingham%20FE%20SCRIPT/lv_0_20260723141904.webm"
         videoPlayer:Play(url)
+        loadingText:Destroy()
+        
+        -- Wait for video to finish
+        task.wait(6)
+        
+        -- Fade out
+        local fade = Instance.new("Frame")
+        fade.Size = UDim2.new(1, 0, 1, 0)
+        fade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        fade.BackgroundTransparency = 1
+        fade.ZIndex = 1000
+        fade.Parent = videoFrame
+        
+        for i = 1, 30 do
+            fade.BackgroundTransparency = 1 - (i / 30)
+            task.wait(0.05)
+        end
+        
+        videoFrame:Destroy()
+        introShown = true
     end)
     
     if not success then
+        -- Fallback: Show a simple intro animation
+        loadingText.Text = "🎬 Intro Playing..."
+        
+        -- Simple color animation as fallback
+        for i = 1, 20 do
+            videoFrame.BackgroundColor3 = Color3.fromRGB(math.random(0, 50), math.random(0, 50), math.random(100, 150))
+            task.wait(0.1)
+        end
+        
+        -- Fade out
+        for i = 1, 30 do
+            videoFrame.BackgroundTransparency = i / 30
+            task.wait(0.05)
+        end
+        
         videoFrame:Destroy()
-        return
+        introShown = true
     end
-    
-    -- Wait for video to finish or timeout
-    task.wait(5) -- Assuming video duration
-    
-    -- Fade out effect
-    local fade = Instance.new("Frame")
-    fade.Size = UDim2.new(1, 0, 1, 0)
-    fade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    fade.BackgroundTransparency = 1
-    fade.ZIndex = 1000
-    fade.Parent = videoFrame
-    
-    for i = 1, 30 do
-        fade.BackgroundTransparency = 1 - (i / 30)
-        task.wait(0.05)
-    end
-    
-    videoFrame:Destroy()
 end
 
--- Auto play intro on startup
-task.wait(1)
+-- Auto play intro on startup (with slight delay)
+task.wait(0.5)
 playIntro()
 
 -- Character respawn handling
@@ -356,7 +404,6 @@ player.CharacterAdded:Connect(function(newChar)
     
     if speedEnabled then
         humanoid.WalkSpeed = 80
-        humanoid.Acceleration = 81
     end
 end)
 
