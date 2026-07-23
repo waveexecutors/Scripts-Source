@@ -295,7 +295,7 @@ local function playIntro()
         local img3 = Instance.new("ImageLabel")
         img3.Size = UDim2.new(1, 0, 1, 0)
         img3.BackgroundTransparency = 1
-        img3.Image = "rbxassetid://699259085" -- Standard Roblox Logo Asset
+        img3.Image = "rbxassetid://657238199" -- Standard Roblox Logo Asset
         img3.ScaleType = Enum.ScaleType.Stretch
         img3.Parent = b3
         
