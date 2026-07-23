@@ -273,7 +273,7 @@ local function playIntro()
         local t1 = Instance.new("TextLabel")
         t1.Size = UDim2.new(1, 0, 1, 0)
         t1.BackgroundTransparency = 1
-        t1.Text = "script land"
+        t1.Text = "SCRIPT LAND"
         t1.TextScaled = true
         t1.TextColor3 = Color3.fromRGB(0, 0, 0)
         t1.Font = Enum.Font.GothamBlack
@@ -284,7 +284,7 @@ local function playIntro()
         local t2 = Instance.new("TextLabel")
         t2.Size = UDim2.new(1, 0, 1, 0)
         t2.BackgroundTransparency = 1
-        t2.Text = "st"
+        t2.Text = "ST"
         t2.TextScaled = true
         t2.TextColor3 = Color3.fromRGB(0, 0, 0)
         t2.Font = Enum.Font.GothamBlack
@@ -295,7 +295,7 @@ local function playIntro()
         local img3 = Instance.new("ImageLabel")
         img3.Size = UDim2.new(1, 0, 1, 0)
         img3.BackgroundTransparency = 1
-        img3.Image = "rbxassetid://4464262820" -- Standard Roblox Logo Asset
+        img3.Image = "rbxassetid://699259085" -- Standard Roblox Logo Asset
         img3.ScaleType = Enum.ScaleType.Stretch
         img3.Parent = b3
         
@@ -315,16 +315,16 @@ local function playIntro()
         -- Animation Sequence: Slide down every 1 second
         local slideTweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         
-        task.wait(1)
+        task.wait(0.5)
         TweenService:Create(b1, slideTweenInfo, {Position = UDim2.new(0, 0, 0, 0)}):Play()
         
-        task.wait(1)
+        task.wait(0.5)
         TweenService:Create(b2, slideTweenInfo, {Position = UDim2.new(0, 0, 0.25, 0)}):Play()
         
-        task.wait(1)
+        task.wait(0.5)
         TweenService:Create(b3, slideTweenInfo, {Position = UDim2.new(0, 0, 0.50, 0)}):Play()
         
-        task.wait(1)
+        task.wait(0.5)
         TweenService:Create(b4, slideTweenInfo, {Position = UDim2.new(0, 0, 0.75, 0)}):Play()
         
         -- Wait for visual to sit, then fade out
