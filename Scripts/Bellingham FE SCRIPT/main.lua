@@ -383,7 +383,9 @@ local function buildIntroBlocks(container)
     img3.Size = UDim2.new(1, 0, 1, 0)
     img3.BackgroundTransparency = 1
     img3.Text = "ROBLOX"
-    img3.ScaleType = Enum.ScaleType.Stretch
+    img3.TextScaled = true
+    img3.TextColor3 = Color3.fromRGB(0, 0, 0)
+    img3.Font = Enum.Font.GothamBlack
     img3.Parent = b3
     
     -- Block 4: Avatar
