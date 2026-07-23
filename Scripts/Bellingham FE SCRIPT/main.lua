@@ -482,17 +482,17 @@ function playIntro()
         local slideTweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         
         -- Block 1: Fixed 1 second delay
-        task.wait(1)
+        task.wait(0.9)
         TweenService:Create(b1, slideTweenInfo, {Position = UDim2.new(0, 0, 0, 0)}):Play()
         
         -- Block 2, 3, 4: User controlled delay
-        task.wait(blockDelay)
+        task.wait(0.65)
         TweenService:Create(b2, slideTweenInfo, {Position = UDim2.new(0, 0, 0.25, 0)}):Play()
         
-        task.wait(blockDelay)
+        task.wait(0.65)
         TweenService:Create(b3, slideTweenInfo, {Position = UDim2.new(0, 0, 0.50, 0)}):Play()
         
-        task.wait(blockDelay)
+        task.wait(0.65)
         TweenService:Create(b4, slideTweenInfo, {Position = UDim2.new(0, 0, 0.75, 0)}):Play()
         
         task.wait(1)
