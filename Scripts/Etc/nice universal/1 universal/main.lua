@@ -1,17 +1,18 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local Players, RunService, Lighting, Workspace = game:GetService("Players"), game:GetService("RunService"), game:GetService("Lighting"), game:GetService("Workspace")
+local Players, RunService, Lighting, Workspace, UserInputService = game:GetService("Players"), game:GetService("RunService"), game:GetService("Lighting"), game:GetService("Workspace"), game:GetService("UserInputService")
 local LocalPlayer, Camera = Players.LocalPlayer, Workspace.CurrentCamera
 
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ Apex Utility | Universal V4", LoadingTitle = "Apex Hub", ConfigurationSaving = {Enabled = false},
+   Name = "⚡ Apex Utility | Universal V5", LoadingTitle = "Apex Hub", ConfigurationSaving = {Enabled = false},
    KeySystem = true, KeySettings = {Title = "Apex Hub", Subtitle = "Key System", Note = "Key: 300", SaveKey = false, Key = {"300"}}
 })
 
--- States
+-- State Variables
 local Config = {Speed = 16, ForceSpeed = false, Noclip = false, Fullbright = false, ESP = false, LoopTP = false, Target = nil}
 local Utils = {Items = false, Doors = false, Puzzles = false, Killers = false}
 local Fun = {DAudio = false, DScreen = false, WAudio = false, WScreen = false}
-local Aim = {Normal = false, Silent = false, Smoothness = 0.2, Target = nil}
+local Aim = {Normal = false, Silent = false, MaxDistance = 2000}
+local FPSCapEnabled = false
 
 local DefaultL = {Ambient = Lighting.Ambient, Outdoor = Lighting.OutdoorAmbient, Brightness = Lighting.Brightness, Time = Lighting.ClockTime}
 
@@ -23,20 +24,46 @@ local GamesTab = Window:CreateTab("Game Utilities", 4483362458)
 local MusicTab = Window:CreateTab("Music Player", 4483362458)
 local FunTab = Window:CreateTab("Fun", 4483362458)
 
--- Movement & Aimbot Tab
-MainTab:CreateSection("Aimbot")
-MainTab:CreateToggle({Name = "Aimbot Normal (Lock on Head)", Callback = function(v) Aim.Normal = v end})
-MainTab:CreateToggle({Name = "Silent Aim (Head)", Callback = function(v) Aim.Silent = v end})
-MainTab:CreateSlider({Name = "Aimbot Smoothness", Range = {0.05, 1}, Increment = 0.05, CurrentValue = 0.2, Callback = function(v) Aim.Smoothness = v end})
+---------------------------------------------------------
+-- 1. MOVEMENT & AIMBOT (INSTANT LOCK & REAL 120 FPS)
+---------------------------------------------------------
+MainTab:CreateSection("Aimbot (Instant & Head Precision)")
+MainTab:CreateToggle({
+   Name = "Aimbot Normal (Lock Instantâneo na Cabeça)", 
+   Callback = function(v) Aim.Normal = v end
+})
 
-MainTab:CreateSection("Movement & Cam")
+MainTab:CreateToggle({
+   Name = "Silent Aim (Head Precision)", 
+   Callback = function(v) Aim.Silent = v end
+})
+
+MainTab:CreateSection("Movement & FPS Boost")
 MainTab:CreateToggle({Name = "Force Speed", Callback = function(v) Config.ForceSpeed = v end})
 MainTab:CreateSlider({Name = "Speed Value", Range = {16, 250}, Increment = 1, CurrentValue = 16, Callback = function(v) Config.Speed = v end})
 MainTab:CreateToggle({Name = "Noclip", Callback = function(v) Config.Noclip = v end})
 MainTab:CreateSlider({Name = "Camera FOV", Range = {70, 120}, Increment = 1, CurrentValue = 70, Callback = function(v) Camera.FieldOfView = v end})
-MainTab:CreateToggle({Name = "Unlock 120 FPS", Callback = function(v) if setfpscap then setfpscap(v and 120 or 60) end end})
 
--- Visuals
+MainTab:CreateToggle({
+   Name = "Unlock 120 FPS REAL + Engine Booster", 
+   Callback = function(v) 
+      FPSCapEnabled = v
+      if setfpscap then 
+         setfpscap(v and 120 or 60) 
+      end
+      -- Otimização interna da engine para alcance de 120 FPS reais
+      if v then
+         sethiddenproperty(workspace, "InterpolationThrottling", Enum.InterpolationThrottlingMode.Disabled)
+         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+      else
+         settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+      end
+   end
+})
+
+---------------------------------------------------------
+-- VISUALS & ESP
+---------------------------------------------------------
 VisualsTab:CreateToggle({Name = "Fullbright", Callback = function(v)
    Config.Fullbright = v
    if not v then Lighting.Ambient, Lighting.OutdoorAmbient, Lighting.Brightness, Lighting.ClockTime = DefaultL.Ambient, DefaultL.Outdoor, DefaultL.Brightness, DefaultL.Time end
@@ -52,7 +79,9 @@ local function CleanupESP()
 end
 VisualsTab:CreateToggle({Name = "Player & Name ESP", Callback = function(v) Config.ESP = v if not v then CleanupESP() end end})
 
--- Players & TP
+---------------------------------------------------------
+-- PLAYERS & TELEPORT
+---------------------------------------------------------
 local function GetPLs()
    local t = {} for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then table.insert(t, p.DisplayName.." (@"..p.Name..")") end end return t
 end
@@ -67,7 +96,9 @@ PlayersTab:CreateButton({Name = "Teleport To Target", Callback = function()
 end})
 PlayersTab:CreateToggle({Name = "Loop Teleport", Callback = function(v) Config.LoopTP = v end})
 
--- Game Utilities
+---------------------------------------------------------
+-- GAME UTILITIES
+---------------------------------------------------------
 local function ClearHL(tag)
    for _, o in pairs(Workspace:GetDescendants()) do if o:IsA("Highlight") and o.Name == tag then o:Destroy() end end
 end
@@ -76,7 +107,9 @@ GamesTab:CreateToggle({Name = "ESP Doors & Exits", Callback = function(v) Utils.
 GamesTab:CreateToggle({Name = "ESP Levers & Traps", Callback = function(v) Utils.Puzzles = v if not v then ClearHL("PuzzleGlow") end end})
 GamesTab:CreateToggle({Name = "ESP Killers & Monsters", Callback = function(v) Utils.Killers = v if not v then ClearHL("KillerGlow") end end})
 
--- Music Player
+---------------------------------------------------------
+-- MUSIC PLAYER
+---------------------------------------------------------
 local SelectedTrack, CurrentTrack = nil, nil
 local function GetMp3()
    local t = {} if listfiles then for _, f in pairs(listfiles("")) do if f:sub(-4):lower() == ".mp3" then table.insert(t, f:match("^.+/(.+)$") or f) end end end
@@ -97,29 +130,41 @@ end})
 MusicTab:CreateButton({Name = "Stop Music", Callback = function() if CurrentTrack then CurrentTrack:Stop() CurrentTrack:Destroy() CurrentTrack = nil end end})
 MusicTab:CreateSlider({Name = "Volume", Range = {0, 10}, Increment = 0.1, CurrentValue = 1, Callback = function(v) if CurrentTrack then CurrentTrack.Volume = v end end})
 
--- Fun
+---------------------------------------------------------
+-- FUN TAB
+---------------------------------------------------------
 FunTab:CreateToggle({Name = "Distort Game Audio", Callback = function(v) Fun.DAudio = v end})
 FunTab:CreateToggle({Name = "Distort Game Screen", Callback = function(v) Fun.DScreen = v end})
 FunTab:CreateToggle({Name = "Wiggle Game Audio", Callback = function(v) Fun.WAudio = v end})
 FunTab:CreateToggle({Name = "Wiggle Game Screen", Callback = function(v) Fun.WScreen = v end})
 
--- Helper functions for Aimbot
+---------------------------------------------------------
+-- HIGH PRECISION AIMBOT CALCULATOR
+---------------------------------------------------------
 local function GetClosestTargetHead()
    local closest, maxDist = nil, math.huge
+   local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
    for _, p in pairs(Players:GetPlayers()) do
-      if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChildOfClass("Humanoid") and p.Character.Humanoid.Health > 0 then
-         local head = p.Character.Head
-         local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-         if onScreen then
-            local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
-            if dist < maxDist then closest = head maxDist = dist end
+      if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChildOfClass("Humanoid") then
+         local hum = p.Character:FindFirstChildOfClass("Humanoid")
+         if hum and hum.Health > 0 then
+            local head = p.Character.Head
+            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+               local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+               if dist < maxDist then 
+                  closest = head 
+                  maxDist = dist 
+               end
+            end
          end
       end
    end
    return closest
 end
 
--- Silent Aim Hook (Camera/Namecall)
+-- Silent Aim Hook
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
    local method = getnamecallmethod()
@@ -135,17 +180,26 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
    return oldNamecall(self, ...)
 end)
 
--- Main Loops
+---------------------------------------------------------
+-- MAIN RENDER & STEPPED LOOPS
+---------------------------------------------------------
 local angle = 0
 RunService.RenderStepped:Connect(function(dt)
    angle = angle + dt
-   -- Aimbot Normal
+   
+   -- Lock Instantâneo na Cabeça
    if Aim.Normal then
       local head = GetClosestTargetHead()
       if head then
-         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, head.Position), Aim.Smoothness)
+         Camera.CFrame = CFrame.new(Camera.CFrame.Position, head.Position)
       end
    end
+
+   -- FPS Maintainer Lock
+   if FPSCapEnabled and setfpscap then
+      setfpscap(120)
+   end
+
    -- Fun Screen Effects
    if Fun.DScreen then Camera.CFrame = Camera.CFrame * CFrame.Angles(0, 0, math.rad(math.random(-25, 25))) end
    if Fun.WScreen then Camera.CFrame = Camera.CFrame * CFrame.Angles(math.cos(angle * 6) * 0.08, 0, math.sin(angle * 8) * 0.15) end
@@ -162,7 +216,9 @@ RunService.Stepped:Connect(function()
    if Fun.WAudio then local sp = 1 + math.sin(tick() * 10) * 0.4 for _, s in pairs(Workspace:GetDescendants()) do if s:IsA("Sound") and s.IsPlaying then s.PlaybackSpeed = sp end end end
 end)
 
--- ESP & Utils Worker
+---------------------------------------------------------
+-- ESP & UTILITIES BACKGROUND WORKER
+---------------------------------------------------------
 task.spawn(function()
    while task.wait(0.5) do
       if Config.ESP then
@@ -221,4 +277,4 @@ task.spawn(function()
    end
 end)
 
-Rayfield:Notify({Title = "Apex Hub V4 Ready", Content = "Loaded with Smooth Aimbot & Silent Aim!", Duration = 4})
+Rayfield:Notify({Title = "Apex Hub V5 Real", Content = "Instant Lock na Cabeça + Unlock 120 FPS Real ativados!", Duration = 4})
