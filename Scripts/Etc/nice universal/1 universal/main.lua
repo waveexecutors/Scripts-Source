@@ -2,7 +2,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ Apex Utility | Universal V2",
+   Name = "⚡ Apex Utility | Universal V3",
    LoadingTitle = "Apex Hub",
    LoadingSubtitle = "by Assistant",
    ConfigurationSaving = {
@@ -28,6 +28,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
 local LocalPlayer = Players.LocalPlayer
 
 -- State Variables
@@ -39,6 +40,18 @@ local ESPEnabled = false
 local LoopTPEnabled = false
 local SelectedPlayerForTP = nil
 local CurrentSoundTrack = nil
+
+-- Utility Toggles State
+local UtilityItemsToggle = false
+local UtilityDoorsToggle = false
+local UtilityPuzzlesToggle = false
+local UtilityKillersToggle = false
+
+-- Fun Tab Toggle States
+local DistortAudioToggle = false
+local DistortScreenToggle = false
+local WiggleAudioToggle = false
+local WiggleScreenToggle = false
 
 -- Default Lighting Values
 local DefaultAmbient = Lighting.Ambient
@@ -54,6 +67,7 @@ local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 local PlayersTab = Window:CreateTab("Players & TP", 4483362458)
 local GamesTab = Window:CreateTab("Game Utilities", 4483362458)
 local MusicTab = Window:CreateTab("Music Player", 4483362458)
+local FunTab = Window:CreateTab("Fun", 4483362458)
 
 ---------------------------------------------------------
 -- 1. MOVEMENT & CAMERA TAB
@@ -222,98 +236,65 @@ PlayersTab:CreateToggle({
 })
 
 ---------------------------------------------------------
--- 4. GAME UTILITIES TAB
+-- 4. GAME UTILITIES TAB (TOGGLES)
 ---------------------------------------------------------
 GamesTab:CreateSection("Highlights & ESP Targets")
 
-GamesTab:CreateButton({
-   Name = "Highlight Keys, Items & Tools",
-   Callback = function()
-      local count = 0
-      for _, item in pairs(Workspace:GetDescendants()) do
-         if item:IsA("ClickDetector") or item:IsA("ProximityPrompt") or item:IsA("Tool") then
-            local targetPart = item:IsA("Tool") and (item:FindFirstChild("Handle") or item) or item.Parent
-            if targetPart and (targetPart:IsA("BasePart") or targetPart:IsA("Model")) and not targetPart:FindFirstChild("ItemGlow") then
-               local highlight = Instance.new("Highlight")
-               highlight.Name = "ItemGlow"
-               highlight.FillColor = Color3.fromRGB(255, 255, 0)
-               highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-               highlight.Parent = targetPart
-               count = count + 1
-            end
-         end
+local function ClearHighlights(tagName)
+   for _, obj in pairs(Workspace:GetDescendants()) do
+      if obj:IsA("Highlight") and obj.Name == tagName then
+         obj:Destroy()
       end
-      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " keys & items!", Duration = 3})
+   end
+   for _, p in pairs(Players:GetPlayers()) do
+      if p.Character and p.Character:FindFirstChild(tagName) then
+         p.Character[tagName]:Destroy()
+      end
+   end
+end
+
+GamesTab:CreateToggle({
+   Name = "ESP Keys, Items & Tools",
+   CurrentValue = false,
+   Flag = "ItemsToggle",
+   Callback = function(Value)
+      UtilityItemsToggle = Value
+      if not Value then ClearHighlights("ItemGlow") end
    end,
 })
 
-GamesTab:CreateButton({
-   Name = "Highlight Escape Doors, Exits & Vents",
-   Callback = function()
-      local count = 0
-      for _, obj in pairs(Workspace:GetDescendants()) do
-         local name = obj.Name:lower()
-         if name:find("door") or name:find("exit") or name:find("escape") or name:find("vent") or name:find("pod") then
-            if (obj:IsA("BasePart") or obj:IsA("Model")) and not obj:FindFirstChild("DoorGlow") then
-               local highlight = Instance.new("Highlight")
-               highlight.Name = "DoorGlow"
-               highlight.FillColor = Color3.fromRGB(0, 255, 128)
-               highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-               highlight.Parent = obj
-               count = count + 1
-            end
-         end
-      end
-      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " doors & exits!", Duration = 3})
+GamesTab:CreateToggle({
+   Name = "ESP Escape Doors & Exits",
+   CurrentValue = false,
+   Flag = "DoorsToggle",
+   Callback = function(Value)
+      UtilityDoorsToggle = Value
+      if not Value then ClearHighlights("DoorGlow") end
    end,
 })
 
-GamesTab:CreateButton({
-   Name = "Highlight Puzzle Levers, Buttons & Traps",
-   Callback = function()
-      local count = 0
-      for _, obj in pairs(Workspace:GetDescendants()) do
-         local name = obj.Name:lower()
-         if name:find("lever") or name:find("button") or name:find("generator") or name:find("puzzle") or name:find("trap") then
-            if (obj:IsA("BasePart") or obj:IsA("Model")) and not obj:FindFirstChild("PuzzleGlow") then
-               local highlight = Instance.new("Highlight")
-               highlight.Name = "PuzzleGlow"
-               highlight.FillColor = Color3.fromRGB(0, 191, 255)
-               highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-               highlight.Parent = obj
-               count = count + 1
-            end
-         end
-      end
-      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " interactive objects!", Duration = 3})
+GamesTab:CreateToggle({
+   Name = "ESP Levers, Buttons & Traps",
+   CurrentValue = false,
+   Flag = "PuzzlesToggle",
+   Callback = function(Value)
+      UtilityPuzzlesToggle = Value
+      if not Value then ClearHighlights("PuzzleGlow") end
    end,
 })
 
-GamesTab:CreateButton({
-   Name = "Highlight Killers & Monsters",
-   Callback = function()
-      local count = 0
-      for _, p in pairs(Players:GetPlayers()) do
-         if p ~= LocalPlayer and p.Character then
-            if (p.Team and (p.Team.Name:lower():find("killer") or p.Team.Name:lower():find("piggy") or p.Team.Name:lower():find("banana"))) 
-               or p.Character:FindFirstChildOfClass("Tool") then
-               
-               if not p.Character:FindFirstChild("KillerGlow") then
-                  local hl = Instance.new("Highlight")
-                  hl.Name = "KillerGlow"
-                  hl.FillColor = Color3.fromRGB(255, 0, 0)
-                  hl.Parent = p.Character
-                  count = count + 1
-               end
-            end
-         end
-      end
-      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " killers/monsters!", Duration = 3})
+GamesTab:CreateToggle({
+   Name = "ESP Killers & Monsters",
+   CurrentValue = false,
+   Flag = "KillersToggle",
+   Callback = function(Value)
+      UtilityKillersToggle = Value
+      if not Value then ClearHighlights("KillerGlow") end
    end,
 })
 
 ---------------------------------------------------------
--- 5. MUSIC PLAYER TAB (Delta Workspace MP3 Loader)
+-- 5. MUSIC PLAYER TAB
 ---------------------------------------------------------
 MusicTab:CreateSection("Workspace Audio Player")
 
@@ -325,15 +306,12 @@ local function GetMp3Files()
       local allFiles = listfiles("")
       for _, filePath in pairs(allFiles) do
          if filePath:sub(-4):lower() == ".mp3" then
-            -- Clean path string to extract filename
             local fileName = filePath:match("^.+/(.+)$") or filePath:match("^.+\\(.+)$") or filePath
             table.insert(files, fileName)
          end
       end
    end
-   if #files == 0 then
-      table.insert(files, "No .mp3 files found")
-   end
+   if #files == 0 then table.insert(files, "No .mp3 files found") end
    return files
 end
 
@@ -415,15 +393,96 @@ MusicTab:CreateSlider({
 })
 
 ---------------------------------------------------------
--- MAIN RUNSERVICE LOOPS
+-- 6. FUN TAB
 ---------------------------------------------------------
+FunTab:CreateSection("Audio & Screen Effects")
+
+FunTab:CreateToggle({
+   Name = "Distort Game Audio",
+   CurrentValue = false,
+   Flag = "DistortAudioToggle",
+   Callback = function(Value)
+      DistortAudioToggle = Value
+      if not Value then
+         for _, sound in pairs(Workspace:GetDescendants()) do
+            if sound:IsA("Sound") then sound.PlaybackSpeed = 1 end
+         end
+         for _, sound in pairs(SoundService:GetDescendants()) do
+            if sound:IsA("Sound") then sound.PlaybackSpeed = 1 end
+         end
+      end
+   end,
+})
+
+FunTab:CreateToggle({
+   Name = "Distort Game Screen",
+   CurrentValue = false,
+   Flag = "DistortScreenToggle",
+   Callback = function(Value)
+      DistortScreenToggle = Value
+   end,
+})
+
+FunTab:CreateToggle({
+   Name = "Wiggle Game Audio",
+   CurrentValue = false,
+   Flag = "WiggleAudioToggle",
+   Callback = function(Value)
+      WiggleAudioToggle = Value
+      if not Value then
+         for _, sound in pairs(Workspace:GetDescendants()) do
+            if sound:IsA("Sound") then sound.PlaybackSpeed = 1 end
+         end
+         for _, sound in pairs(SoundService:GetDescendants()) do
+            if sound:IsA("Sound") then sound.PlaybackSpeed = 1 end
+         end
+      end
+   end,
+})
+
+FunTab:CreateToggle({
+   Name = "Wiggle Game Screen",
+   CurrentValue = false,
+   Flag = "WiggleScreenToggle",
+   Callback = function(Value)
+      WiggleScreenToggle = Value
+   end,
+})
+
+---------------------------------------------------------
+-- MAIN RUNSERVICE & STEPPED LOOPS
+---------------------------------------------------------
+local angleCounter = 0
+
+RunService.RenderStepped:Connect(function(deltaTime)
+   angleCounter = angleCounter + deltaTime
+
+   -- Distort Screen Logic
+   if DistortScreenToggle then
+      local cam = Workspace.CurrentCamera
+      if cam then
+         cam.CFrame = cam.CFrame * CFrame.Angles(0, 0, math.rad(math.random(-25, 25)))
+      end
+   end
+
+   -- Wiggle Screen Logic
+   if WiggleScreenToggle then
+      local cam = Workspace.CurrentCamera
+      if cam then
+         local wiggleZ = math.sin(angleCounter * 8) * 0.15
+         local wiggleY = math.cos(angleCounter * 6) * 0.08
+         cam.CFrame = cam.CFrame * CFrame.Angles(wiggleY, 0, wiggleZ)
+      end
+   end
+end)
+
 RunService.Stepped:Connect(function()
-   -- Force Speed Logic
+   -- Force Speed
    if ForceSpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
       LocalPlayer.Character.Humanoid.WalkSpeed = TargetSpeed
    end
 
-   -- Noclip Logic
+   -- Noclip
    if NoclipEnabled and LocalPlayer.Character then
       for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
          if part:IsA("BasePart") and part.CanCollide then
@@ -432,7 +491,7 @@ RunService.Stepped:Connect(function()
       end
    end
 
-   -- Fullbright Logic
+   -- Fullbright
    if FullbrightEnabled then
       Lighting.Ambient = Color3.fromRGB(255, 255, 255)
       Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
@@ -440,33 +499,61 @@ RunService.Stepped:Connect(function()
       Lighting.ClockTime = 14
    end
 
-   -- Loop Teleport Logic
+   -- Loop Teleport
    if LoopTPEnabled and SelectedPlayerForTP and SelectedPlayerForTP.Character and SelectedPlayerForTP.Character:FindFirstChild("HumanoidRootPart") then
       if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
          LocalPlayer.Character.HumanoidRootPart.CFrame = SelectedPlayerForTP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
       end
    end
+
+   -- Distort Audio Logic
+   if DistortAudioToggle then
+      for _, sound in pairs(Workspace:GetDescendants()) do
+         if sound:IsA("Sound") and sound.IsPlaying then
+            sound.PlaybackSpeed = math.random(3, 30) / 10
+         end
+      end
+   end
+
+   -- Wiggle Audio Logic
+   if WiggleAudioToggle then
+      local speedMod = 1 + math.sin(tick() * 10) * 0.4
+      for _, sound in pairs(Workspace:GetDescendants()) do
+         if sound:IsA("Sound") and sound.IsPlaying then
+            sound.PlaybackSpeed = speedMod
+         end
+      end
+   end
 end)
 
--- Dynamic Team & Name ESP Loop
+---------------------------------------------------------
+-- BACKGROUND ESP & UTILITY TOGGLES LOOP
+---------------------------------------------------------
 task.spawn(function()
    while task.wait(0.5) do
+      -- Dynamic Player & Name ESP (With Piggy Fix)
       if ESPEnabled then
          for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
                
-               -- Determine Team Status & Color
+               -- Check for Piggy/Killer explicitly to prevent showing as Friendly
+               local charName = player.Character.Name:lower()
+               local pName = player.Name:lower()
+               local isPiggyOrKiller = charName:find("piggy") or pName:find("piggy") or charName:find("killer") or charName:find("banana") or player.Character:FindFirstChild("Weapon") or player.Character:FindFirstChild("Bat")
+
                local isFriendly = false
-               if player.Team and LocalPlayer.Team then
-                  isFriendly = (player.Team == LocalPlayer.Team)
-               elseif player.TeamColor and LocalPlayer.TeamColor then
-                  isFriendly = (player.TeamColor == LocalPlayer.TeamColor)
+               if not isPiggyOrKiller then
+                  if player.Team and LocalPlayer.Team then
+                     isFriendly = (player.Team == LocalPlayer.Team)
+                  elseif player.TeamColor and LocalPlayer.TeamColor then
+                     isFriendly = (player.TeamColor == LocalPlayer.TeamColor)
+                  end
                end
 
                local statusTag = isFriendly and "[ Friendly ]" or "[ Enemy ]"
                local tagColor = isFriendly and Color3.fromRGB(0, 255, 128) or Color3.fromRGB(255, 50, 50)
 
-               -- 1. Highlight Box ESP
+               -- Highlight
                local highlight = player.Character:FindFirstChild("ApexESP")
                if not highlight then
                   highlight = Instance.new("Highlight")
@@ -475,7 +562,7 @@ task.spawn(function()
                end
                highlight.FillColor = tagColor
 
-               -- 2. Name & Distance Billboard GUI
+               -- Name Tag
                local head = player.Character.Head
                local nameGui = head:FindFirstChild("ApexNameESP")
                if not nameGui then
@@ -493,11 +580,9 @@ task.spawn(function()
                   label.Font = Enum.Font.SourceSansBold
                   label.TextStrokeTransparency = 0
                   label.Parent = nameGui
-
                   nameGui.Parent = head
                end
 
-               -- Distance Calculation
                local dist = 0
                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                   dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude)
@@ -511,11 +596,72 @@ task.spawn(function()
             end
          end
       end
+
+      -- Game Utilities Toggles Execution
+      if UtilityItemsToggle then
+         for _, item in pairs(Workspace:GetDescendants()) do
+            if item:IsA("ClickDetector") or item:IsA("ProximityPrompt") or item:IsA("Tool") then
+               local targetPart = item:IsA("Tool") and (item:FindFirstChild("Handle") or item) or item.Parent
+               if targetPart and (targetPart:IsA("BasePart") or targetPart:IsA("Model")) and not targetPart:FindFirstChild("ItemGlow") then
+                  local highlight = Instance.new("Highlight")
+                  highlight.Name = "ItemGlow"
+                  highlight.FillColor = Color3.fromRGB(255, 255, 0)
+                  highlight.Parent = targetPart
+               end
+            end
+         end
+      end
+
+      if UtilityDoorsToggle then
+         for _, obj in pairs(Workspace:GetDescendants()) do
+            local name = obj.Name:lower()
+            if name:find("door") or name:find("exit") or name:find("escape") or name:find("vent") or name:find("pod") then
+               if (obj:IsA("BasePart") or obj:IsA("Model")) and not obj:FindFirstChild("DoorGlow") then
+                  local highlight = Instance.new("Highlight")
+                  highlight.Name = "DoorGlow"
+                  highlight.FillColor = Color3.fromRGB(0, 255, 128)
+                  highlight.Parent = obj
+               end
+            end
+         end
+      end
+
+      if UtilityPuzzlesToggle then
+         for _, obj in pairs(Workspace:GetDescendants()) do
+            local name = obj.Name:lower()
+            if name:find("lever") or name:find("button") or name:find("generator") or name:find("puzzle") or name:find("trap") then
+               if (obj:IsA("BasePart") or obj:IsA("Model")) and not obj:FindFirstChild("PuzzleGlow") then
+                  local highlight = Instance.new("Highlight")
+                  highlight.Name = "PuzzleGlow"
+                  highlight.FillColor = Color3.fromRGB(0, 191, 255)
+                  highlight.Parent = obj
+               end
+            end
+         end
+      end
+
+      if UtilityKillersToggle then
+         for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+               local charName = p.Character.Name:lower()
+               local pName = p.Name:lower()
+               if charName:find("piggy") or pName:find("piggy") or charName:find("killer") or charName:find("banana") or p.Character:FindFirstChild("Weapon") or p.Character:FindFirstChild("Bat") then
+                  if not p.Character:FindFirstChild("KillerGlow") then
+                     local hl = Instance.new("Highlight")
+                     hl.Name = "KillerGlow"
+                     hl.FillColor = Color3.fromRGB(255, 0, 0)
+                     hl.Parent = p.Character
+                  end
+               end
+            end
+         end
+      end
+
    end
 end)
 
 Rayfield:Notify({
-   Title = "Apex Hub V2 Loaded",
-   Content = "Added Music Player & Enhanced ESP successfully!",
+   Title = "Apex Hub V3 Loaded",
+   Content = "Fun tab added & utilities converted to toggles!",
    Duration = 4,
 })
