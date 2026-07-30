@@ -1,67 +1,71 @@
--- Modern Universal Hub (Rayfield UI)
+-- Rayfield UI Library Setup
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Universal Hub | Modern Edition",
-   LoadingTitle = "Loading System...",
-   LoadingSubtitle = "By Assistant",
+   Name = "⚡ Apex Utility | Universal V2",
+   LoadingTitle = "Apex Hub",
+   LoadingSubtitle = "by Assistant",
    ConfigurationSaving = {
-      Enabled = false,
+      Enabled = true,
+      FolderName = "ApexHubConfig",
+      FileName = "Settings"
    },
-   Discord = {
-      Enabled = false,
-   },
+   Discord = { Enabled = false },
    KeySystem = true,
    KeySettings = {
-      Title = "Key Verification",
-      Subtitle = "Enter system key",
-      Note = "Key is 300",
-      FileName = "HubKey",
+      Title = "Apex Hub | Verification",
+      Subtitle = "Key System",
+      Note = "Enter the access key to continue",
+      FileName = "ApexKey",
       SaveKey = false,
       GrabKeyFromSite = false,
       Key = {"300"}
    }
 })
 
--- Service References
+-- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- Global Variables
-local SpeedValue = 16
-local SpeedEnabled = false
+-- State Variables
+local ForceSpeedEnabled = false
+local TargetSpeed = 16
 local NoclipEnabled = false
-local FOVValue = 70
-local FOVEnabled = false
-local ESPEnabled = false
 local FullbrightEnabled = false
-local SelectedPlayerToTP = nil
-local LoopTPPlayer = nil
+local ESPEnabled = false
 local LoopTPEnabled = false
+local SelectedPlayerForTP = nil
+local CurrentSoundTrack = nil
 
--- Storage for ESP Highlights
-local ESPHighlights = {}
+-- Default Lighting Values
+local DefaultAmbient = Lighting.Ambient
+local DefaultOutdoorAmbient = Lighting.OutdoorAmbient
+local DefaultBrightness = Lighting.Brightness
+local DefaultClockTime = Lighting.ClockTime
 
-----------------------------------------------------------------
+---------------------------------------------------------
 -- TABS
-----------------------------------------------------------------
-local MainTab = Window:CreateTab("Main", 4483362458)
+---------------------------------------------------------
+local MainTab = Window:CreateTab("Movement & Cam", 4483362458)
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
-local PlayerTab = Window:CreateTab("Players", 4483362458)
+local PlayersTab = Window:CreateTab("Players & TP", 4483362458)
 local GamesTab = Window:CreateTab("Game Utilities", 4483362458)
+local MusicTab = Window:CreateTab("Music Player", 4483362458)
 
-----------------------------------------------------------------
--- MAIN TAB (Movement & Core Utilities)
-----------------------------------------------------------------
-MainTab:CreateSection("Movement Controls")
+---------------------------------------------------------
+-- 1. MOVEMENT & CAMERA TAB
+---------------------------------------------------------
+MainTab:CreateSection("Speed & Movement")
 
 MainTab:CreateToggle({
    Name = "Force Speed",
    CurrentValue = false,
+   Flag = "ForceSpeedToggle",
    Callback = function(Value)
-      SpeedEnabled = Value
+      ForceSpeedEnabled = Value
    end,
 })
 
@@ -71,14 +75,16 @@ MainTab:CreateSlider({
    Increment = 1,
    Suffix = " Studs/s",
    CurrentValue = 16,
+   Flag = "SpeedSlider",
    Callback = function(Value)
-      SpeedValue = Value
+      TargetSpeed = Value
    end,
 })
 
 MainTab:CreateToggle({
    Name = "Noclip",
    CurrentValue = false,
+   Flag = "NoclipToggle",
    Callback = function(Value)
       NoclipEnabled = Value
    end,
@@ -86,240 +92,430 @@ MainTab:CreateToggle({
 
 MainTab:CreateSection("Camera & Performance")
 
-MainTab:CreateToggle({
-   Name = "Custom FOV",
-   CurrentValue = false,
-   Callback = function(Value)
-      FOVEnabled = Value
-      if not Value and workspace.CurrentCamera then
-         workspace.CurrentCamera.FieldOfView = 70
-      end
-   end,
-})
-
 MainTab:CreateSlider({
-   Name = "FOV Angle",
-   Range = {30, 120},
+   Name = "Camera FOV",
+   Range = {70, 120},
    Increment = 1,
    Suffix = "°",
    CurrentValue = 70,
+   Flag = "FOVSlider",
    Callback = function(Value)
-      FOVValue = Value
+      Workspace.CurrentCamera.FieldOfView = Value
    end,
 })
 
 MainTab:CreateToggle({
    Name = "Unlock 120 FPS Cap",
    CurrentValue = false,
+   Flag = "FPS120Toggle",
    Callback = function(Value)
       if setfpscap then
          setfpscap(Value and 120 or 60)
       else
-         Rayfield:Notify({Title = "Error", Content = "Your executor does not support setfpscap!"})
+         Rayfield:Notify({Title = "Error", Content = "Your executor does not support setfpscap()", Duration = 3})
       end
    end,
 })
 
-----------------------------------------------------------------
--- VISUALS TAB (ESP & Lighting)
-----------------------------------------------------------------
-VisualsTab:CreateSection("ESP & Illumination")
-
-VisualsTab:CreateToggle({
-   Name = "Team-Color Player ESP",
-   CurrentValue = false,
-   Callback = function(Value)
-      ESPEnabled = Value
-      if not Value then
-         for _, highlight in pairs(ESPHighlights) do
-            highlight:Destroy()
-         end
-         table.clear(ESPHighlights)
-      end
-   end,
-})
+---------------------------------------------------------
+-- 2. VISUALS TAB
+---------------------------------------------------------
+VisualsTab:CreateSection("World & ESP")
 
 VisualsTab:CreateToggle({
    Name = "Fullbright",
    CurrentValue = false,
+   Flag = "FullbrightToggle",
    Callback = function(Value)
       FullbrightEnabled = Value
       if not Value then
-         Lighting.Ambient = Color3.fromRGB(127, 127, 127)
-         Lighting.Brightness = 1
+         Lighting.Ambient = DefaultAmbient
+         Lighting.OutdoorAmbient = DefaultOutdoorAmbient
+         Lighting.Brightness = DefaultBrightness
+         Lighting.ClockTime = DefaultClockTime
       end
    end,
 })
 
-----------------------------------------------------------------
--- PLAYERS TAB (Teleportation & Loops)
-----------------------------------------------------------------
-PlayerTab:CreateSection("Target Selection")
-
--- Function to generate player list string array
-local function GetPlayerOptions()
-   local options = {}
+local function CleanupESP()
    for _, player in pairs(Players:GetPlayers()) do
-      if player ~= LocalPlayer then
-         table.insert(options, player.DisplayName .. " (@" .. player.Name .. ")")
+      if player.Character then
+         if player.Character:FindFirstChild("ApexESP") then player.Character.ApexESP:Destroy() end
+         if player.Character:FindFirstChild("Head") and player.Character.Head:FindFirstChild("ApexNameESP") then
+            player.Character.Head.ApexNameESP:Destroy()
+         end
       end
    end
-   return options
 end
 
-local PlayerDropdown = PlayerTab:CreateDropdown({
-   Name = "Select Target Player",
-   Options = GetPlayerOptions(),
-   CurrentOption = "",
-   Callback = function(Option)
-      local username = string.match(Option[1] or "", "@(%w+)")
-      if username then
-         SelectedPlayerToTP = Players:FindFirstChild(username)
+VisualsTab:CreateToggle({
+   Name = "Player & Name ESP (Team/Status)",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+      ESPEnabled = Value
+      if not Value then
+         CleanupESP()
       end
    end,
 })
 
-PlayerTab:CreateButton({
-   Name = "Teleport to Selected Player",
+---------------------------------------------------------
+-- 3. PLAYERS & TELEPORT TAB
+---------------------------------------------------------
+PlayersTab:CreateSection("Player Selector")
+
+local function GetPlayerList()
+   local list = {}
+   for _, p in pairs(Players:GetPlayers()) do
+      if p ~= LocalPlayer then
+         table.insert(list, p.DisplayName .. " (@" .. p.Name .. ")")
+      end
+   end
+   return list
+end
+
+local PlayerDropdown = PlayersTab:CreateDropdown({
+   Name = "Select Target Player",
+   Options = GetPlayerList(),
+   CurrentOption = {"None"},
+   MultipleOptions = false,
+   Flag = "TargetPlayerDropdown",
+   Callback = function(Option)
+      local chosenText = Option[1]
+      for _, p in pairs(Players:GetPlayers()) do
+         if (p.DisplayName .. " (@" .. p.Name .. ")") == chosenText then
+            SelectedPlayerForTP = p
+            break
+         end
+      end
+   end,
+})
+
+PlayersTab:CreateButton({
+   Name = "Refresh Player List",
    Callback = function()
-      if SelectedPlayerToTP and SelectedPlayerToTP.Character and SelectedPlayerToTP.Character:FindFirstChild("HumanoidRootPart") then
+      PlayerDropdown:Refresh(GetPlayerList())
+   end,
+})
+
+PlayersTab:CreateButton({
+   Name = "Teleport To Target",
+   Callback = function()
+      if SelectedPlayerForTP and SelectedPlayerForTP.Character and SelectedPlayerForTP.Character:FindFirstChild("HumanoidRootPart") then
          if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = SelectedPlayerToTP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
+            LocalPlayer.Character.HumanoidRootPart.CFrame = SelectedPlayerForTP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
          end
       else
-         Rayfield:Notify({Title = "Teleport Failed", Content = "Target player or character not found."})
+         Rayfield:Notify({Title = "Teleport Error", Content = "Target player or character not found!", Duration = 3})
       end
    end,
 })
 
-PlayerTab:CreateToggle({
+PlayersTab:CreateToggle({
    Name = "Loop Teleport To Target",
    CurrentValue = false,
+   Flag = "LoopTPToggle",
    Callback = function(Value)
       LoopTPEnabled = Value
-      if Value then
-         LoopTPPlayer = SelectedPlayerToTP
-      else
-         LoopTPPlayer = nil
-      end
    end,
 })
 
--- Refresh Dropdown automatically when players join/leave
-Players.PlayerAdded:Connect(function()
-   PlayerDropdown:Refresh(GetPlayerOptions())
-end)
-Players.PlayerRemoving:Connect(function()
-   PlayerDropdown:Refresh(GetPlayerOptions())
-end)
-
-----------------------------------------------------------------
--- GAME UTILITIES TAB (Piggy, Banana Eats, Survive the Killer)
-----------------------------------------------------------------
-GamesTab:CreateSection("Special Game Utilities")
+---------------------------------------------------------
+-- 4. GAME UTILITIES TAB
+---------------------------------------------------------
+GamesTab:CreateSection("Highlights & ESP Targets")
 
 GamesTab:CreateButton({
-   Name = "Highlight Killer / Monster (All 3 Games)",
+   Name = "Highlight Keys, Items & Tools",
    Callback = function()
       local count = 0
-      for _, v in pairs(workspace:GetDescendants()) do
-         -- Search for common killer names or traits
-         if v:IsA("Model") and (v.Name:lower():find("piggy") or v.Name:lower():find("banana") or v.Name:lower():find("killer")) then
-            if not v:FindFirstChild("KillerHighlight") then
-               local hl = Instance.new("Highlight")
-               hl.Name = "KillerHighlight"
-               hl.FillColor = Color3.fromRGB(255, 0, 0)
-               hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-               hl.Parent = v
+      for _, item in pairs(Workspace:GetDescendants()) do
+         if item:IsA("ClickDetector") or item:IsA("ProximityPrompt") or item:IsA("Tool") then
+            local targetPart = item:IsA("Tool") and (item:FindFirstChild("Handle") or item) or item.Parent
+            if targetPart and (targetPart:IsA("BasePart") or targetPart:IsA("Model")) and not targetPart:FindFirstChild("ItemGlow") then
+               local highlight = Instance.new("Highlight")
+               highlight.Name = "ItemGlow"
+               highlight.FillColor = Color3.fromRGB(255, 255, 0)
+               highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+               highlight.Parent = targetPart
                count = count + 1
             end
          end
       end
-      Rayfield:Notify({Title = "Game Utility", Content = "Highlighted " .. tostring(count) .. " monsters/killers."})
+      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " keys & items!", Duration = 3})
    end,
 })
 
 GamesTab:CreateButton({
-   Name = "Highlight Keys / Items / Escape Doors",
+   Name = "Highlight Escape Doors, Exits & Vents",
    Callback = function()
       local count = 0
-      for _, v in pairs(workspace:GetDescendants()) do
-         if v:IsA("BasePart") or v:IsA("Model") then
-            local lowerName = v.Name:lower()
-            if lowerName:find("key") or lowerName:find("door") or lowerName:find("code") or lowerName:find("banana") or lowerName:find("exit") then
-               if not v:FindFirstChild("ItemHighlight") then
+      for _, obj in pairs(Workspace:GetDescendants()) do
+         local name = obj.Name:lower()
+         if name:find("door") or name:find("exit") or name:find("escape") or name:find("vent") or name:find("pod") then
+            if (obj:IsA("BasePart") or obj:IsA("Model")) and not obj:FindFirstChild("DoorGlow") then
+               local highlight = Instance.new("Highlight")
+               highlight.Name = "DoorGlow"
+               highlight.FillColor = Color3.fromRGB(0, 255, 128)
+               highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+               highlight.Parent = obj
+               count = count + 1
+            end
+         end
+      end
+      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " doors & exits!", Duration = 3})
+   end,
+})
+
+GamesTab:CreateButton({
+   Name = "Highlight Puzzle Levers, Buttons & Traps",
+   Callback = function()
+      local count = 0
+      for _, obj in pairs(Workspace:GetDescendants()) do
+         local name = obj.Name:lower()
+         if name:find("lever") or name:find("button") or name:find("generator") or name:find("puzzle") or name:find("trap") then
+            if (obj:IsA("BasePart") or obj:IsA("Model")) and not obj:FindFirstChild("PuzzleGlow") then
+               local highlight = Instance.new("Highlight")
+               highlight.Name = "PuzzleGlow"
+               highlight.FillColor = Color3.fromRGB(0, 191, 255)
+               highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+               highlight.Parent = obj
+               count = count + 1
+            end
+         end
+      end
+      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " interactive objects!", Duration = 3})
+   end,
+})
+
+GamesTab:CreateButton({
+   Name = "Highlight Killers & Monsters",
+   Callback = function()
+      local count = 0
+      for _, p in pairs(Players:GetPlayers()) do
+         if p ~= LocalPlayer and p.Character then
+            if (p.Team and (p.Team.Name:lower():find("killer") or p.Team.Name:lower():find("piggy") or p.Team.Name:lower():find("banana"))) 
+               or p.Character:FindFirstChildOfClass("Tool") then
+               
+               if not p.Character:FindFirstChild("KillerGlow") then
                   local hl = Instance.new("Highlight")
-                  hl.Name = "ItemHighlight"
-                  hl.FillColor = Color3.fromRGB(0, 255, 127)
-                  hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                  hl.Parent = v
+                  hl.Name = "KillerGlow"
+                  hl.FillColor = Color3.fromRGB(255, 0, 0)
+                  hl.Parent = p.Character
                   count = count + 1
                end
             end
          end
       end
-      Rayfield:Notify({Title = "Game Utility", Content = "Highlighted " .. tostring(count) .. " key items."})
+      Rayfield:Notify({Title = "Utility", Content = "Highlighted " .. tostring(count) .. " killers/monsters!", Duration = 3})
    end,
 })
 
-----------------------------------------------------------------
--- MAIN EXECUTION LOOPS
-----------------------------------------------------------------
+---------------------------------------------------------
+-- 5. MUSIC PLAYER TAB (Delta Workspace MP3 Loader)
+---------------------------------------------------------
+MusicTab:CreateSection("Workspace Audio Player")
+
+local SelectedTrackName = nil
+
+local function GetMp3Files()
+   local files = {}
+   if listfiles then
+      local allFiles = listfiles("")
+      for _, filePath in pairs(allFiles) do
+         if filePath:sub(-4):lower() == ".mp3" then
+            -- Clean path string to extract filename
+            local fileName = filePath:match("^.+/(.+)$") or filePath:match("^.+\\(.+)$") or filePath
+            table.insert(files, fileName)
+         end
+      end
+   end
+   if #files == 0 then
+      table.insert(files, "No .mp3 files found")
+   end
+   return files
+end
+
+local MusicDropdown = MusicTab:CreateDropdown({
+   Name = "Select MP3 File",
+   Options = GetMp3Files(),
+   CurrentOption = {"None"},
+   MultipleOptions = false,
+   Flag = "MusicDropdown",
+   Callback = function(Option)
+      SelectedTrackName = Option[1]
+   end,
+})
+
+MusicTab:CreateButton({
+   Name = "Refresh MP3 List",
+   Callback = function()
+      MusicDropdown:Refresh(GetMp3Files())
+   end,
+})
+
+MusicTab:CreateButton({
+   Name = "Play Selected MP3",
+   Callback = function()
+      if not SelectedTrackName or SelectedTrackName == "No .mp3 files found" or SelectedTrackName == "None" then
+         Rayfield:Notify({Title = "Music Error", Content = "Please select a valid .mp3 file first!", Duration = 3})
+         return
+      end
+
+      if not (getcustomasset or getsynasset) then
+         Rayfield:Notify({Title = "Executor Error", Content = "Your executor lacks getcustomasset support!", Duration = 3})
+         return
+      end
+
+      local customAssetFunc = getcustomasset or getsynasset
+
+      if CurrentSoundTrack then
+         CurrentSoundTrack:Stop()
+         CurrentSoundTrack:Destroy()
+      end
+
+      local sound = Instance.new("Sound")
+      sound.Name = "DeltaCustomMusic"
+      sound.SoundId = customAssetFunc(SelectedTrackName)
+      sound.Volume = 1
+      sound.Looped = true
+      sound.Parent = Workspace
+      sound:Play()
+
+      CurrentSoundTrack = sound
+      Rayfield:Notify({Title = "Music Player", Content = "Now Playing: " .. SelectedTrackName, Duration = 3})
+   end,
+})
+
+MusicTab:CreateButton({
+   Name = "Stop Playing",
+   Callback = function()
+      if CurrentSoundTrack then
+         CurrentSoundTrack:Stop()
+         CurrentSoundTrack:Destroy()
+         CurrentSoundTrack = nil
+         Rayfield:Notify({Title = "Music Player", Content = "Audio stopped.", Duration = 3})
+      end
+   end,
+})
+
+MusicTab:CreateSlider({
+   Name = "Volume",
+   Range = {0, 10},
+   Increment = 0.1,
+   Suffix = "",
+   CurrentValue = 1,
+   Flag = "MusicVolumeSlider",
+   Callback = function(Value)
+      if CurrentSoundTrack then
+         CurrentSoundTrack.Volume = Value
+      end
+   end,
+})
+
+---------------------------------------------------------
+-- MAIN RUNSERVICE LOOPS
+---------------------------------------------------------
 RunService.Stepped:Connect(function()
-   -- Speed Force
-   if SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-      LocalPlayer.Character.Humanoid.WalkSpeed = SpeedValue
+   -- Force Speed Logic
+   if ForceSpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+      LocalPlayer.Character.Humanoid.WalkSpeed = TargetSpeed
    end
 
    -- Noclip Logic
    if NoclipEnabled and LocalPlayer.Character then
       for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-         if part:IsA("BasePart") then
+         if part:IsA("BasePart") and part.CanCollide then
             part.CanCollide = false
          end
       end
    end
 
+   -- Fullbright Logic
+   if FullbrightEnabled then
+      Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+      Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+      Lighting.Brightness = 2
+      Lighting.ClockTime = 14
+   end
+
    -- Loop Teleport Logic
-   if LoopTPEnabled and LoopTPPlayer and LoopTPPlayer.Character and LoopTPPlayer.Character:FindFirstChild("HumanoidRootPart") then
+   if LoopTPEnabled and SelectedPlayerForTP and SelectedPlayerForTP.Character and SelectedPlayerForTP.Character:FindFirstChild("HumanoidRootPart") then
       if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-         LocalPlayer.Character.HumanoidRootPart.CFrame = LoopTPPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
+         LocalPlayer.Character.HumanoidRootPart.CFrame = SelectedPlayerForTP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
       end
    end
 end)
 
-RunService.RenderStepped:Connect(function()
-   -- Custom FOV
-   if FOVEnabled and workspace.CurrentCamera then
-      workspace.CurrentCamera.FieldOfView = FOVValue
-   end
+-- Dynamic Team & Name ESP Loop
+task.spawn(function()
+   while task.wait(0.5) do
+      if ESPEnabled then
+         for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
+               
+               -- Determine Team Status & Color
+               local isFriendly = false
+               if player.Team and LocalPlayer.Team then
+                  isFriendly = (player.Team == LocalPlayer.Team)
+               elseif player.TeamColor and LocalPlayer.TeamColor then
+                  isFriendly = (player.TeamColor == LocalPlayer.TeamColor)
+               end
 
-   -- Fullbright Logic
-   if FullbrightEnabled then
-      Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-      Lighting.Brightness = 2
-   end
+               local statusTag = isFriendly and "[ Friendly ]" or "[ Enemy ]"
+               local tagColor = isFriendly and Color3.fromRGB(0, 255, 128) or Color3.fromRGB(255, 50, 50)
 
-   -- ESP Logic
-   if ESPEnabled then
-      for _, player in pairs(Players:GetPlayers()) do
-         if player ~= LocalPlayer and player.Character then
-            local highlight = ESPHighlights[player]
-            if not highlight or not highlight.Parent then
-               highlight = Instance.new("Highlight")
-               highlight.Name = "PlayerESP"
-               highlight.Parent = player.Character
-               ESPHighlights[player] = highlight
+               -- 1. Highlight Box ESP
+               local highlight = player.Character:FindFirstChild("ApexESP")
+               if not highlight then
+                  highlight = Instance.new("Highlight")
+                  highlight.Name = "ApexESP"
+                  highlight.Parent = player.Character
+               end
+               highlight.FillColor = tagColor
+
+               -- 2. Name & Distance Billboard GUI
+               local head = player.Character.Head
+               local nameGui = head:FindFirstChild("ApexNameESP")
+               if not nameGui then
+                  nameGui = Instance.new("BillboardGui")
+                  nameGui.Name = "ApexNameESP"
+                  nameGui.Size = UDim2.new(0, 200, 0, 50)
+                  nameGui.StudsOffset = Vector3.new(0, 3, 0)
+                  nameGui.AlwaysOnTop = true
+
+                  local label = Instance.new("TextLabel")
+                  label.Name = "ESPLabel"
+                  label.Size = UDim2.new(1, 0, 1, 0)
+                  label.BackgroundTransparency = 1
+                  label.TextSize = 13
+                  label.Font = Enum.Font.SourceSansBold
+                  label.TextStrokeTransparency = 0
+                  label.Parent = nameGui
+
+                  nameGui.Parent = head
+               end
+
+               -- Distance Calculation
+               local dist = 0
+               if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                  dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude)
+               end
+
+               local textLabel = nameGui:FindFirstChild("ESPLabel")
+               if textLabel then
+                  textLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")\n" .. statusTag .. " - " .. tostring(dist) .. "m"
+                  textLabel.TextColor3 = tagColor
+               end
             end
-
-            -- Match team color if available
-            if player.Team then
-               highlight.FillColor = player.TeamColor.Color
-            else
-               highlight.FillColor = Color3.fromRGB(0, 170, 255)
-            end
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
          end
       end
    end
 end)
+
+Rayfield:Notify({
+   Title = "Apex Hub V2 Loaded",
+   Content = "Added Music Player & Enhanced ESP successfully!",
+   Duration = 4,
+})
