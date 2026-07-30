@@ -29,6 +29,7 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local SoundService = game:GetService("SoundService")
+local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
 -- State Variables
@@ -40,6 +41,7 @@ local ESPEnabled = false
 local LoopTPEnabled = false
 local SelectedPlayerForTP = nil
 local CurrentSoundTrack = nil
+local AntiKickEnabled = false
 
 -- Utility Toggles State
 local UtilityItemsToggle = false
@@ -60,6 +62,172 @@ local DefaultBrightness = Lighting.Brightness
 local DefaultClockTime = Lighting.ClockTime
 
 ---------------------------------------------------------
+-- ANTI-KICK / ANTI-CHEAT BYPASS SYSTEM
+---------------------------------------------------------
+local function BypassAntiCheat()
+    -- Блокировка метода Kick у игрока
+    local function BlockKick()
+        local oldKick = LocalPlayer.Kick
+        LocalPlayer.Kick = function(self, message)
+            if AntiKickEnabled then
+                warn("[Apex] Kick blocked: " .. tostring(message))
+                return nil
+            end
+            return oldKick(self, message)
+        end
+    end
+
+    -- Блокировка удаления игрока из Players
+    local function BlockPlayerRemove()
+        local oldRemove = Players.Remove
+        Players.Remove = function(self, player)
+            if player == LocalPlayer and AntiKickEnabled then
+                warn("[Apex] Player removal blocked")
+                return nil
+            end
+            return oldRemove(self, player)
+        end
+    end
+
+    -- Блокировка принудительного телепорта (используется как анти-кик)
+    local function BlockForcedTeleport()
+        local oldTeleport = TeleportService.Teleport
+        TeleportService.Teleport = function(self, placeId, player, ...)
+            if player == LocalPlayer and AntiKickEnabled then
+                warn("[Apex] Forced teleport blocked")
+                return nil
+            end
+            return oldTeleport(self, placeId, player, ...)
+        end
+    end
+
+    -- Отключение RemoteEvent/RemoteFunction детекторов
+    local function DisableDetectionRemotes()
+        for _, remote in pairs(game:GetDescendants()) do
+            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                local name = remote.Name:lower()
+                if name:find("kick") or name:find("ban") or name:find("detect") or 
+                   name:find("anticheat") or name:find("anti") or name:find("exploit") then
+                    
+                    if remote:IsA("RemoteEvent") then
+                        local oldFire = remote.FireServer
+                        remote.FireServer = function(self, ...)
+                            if AntiKickEnabled then
+                                return nil
+                            end
+                            return oldFire(self, ...)
+                        end
+                    end
+                    
+                    if remote:IsA("RemoteFunction") then
+                        local oldInvoke = remote.InvokeServer
+                        remote.InvokeServer = function(self, ...)
+                            if AntiKickEnabled then
+                                return nil
+                            end
+                            return oldInvoke(self, ...)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Защита скрипта от удаления
+    local function ProtectScript()
+        local scriptObj = script or getfenv(0).script
+        if scriptObj then
+            local oldDestroy = scriptObj.Destroy
+            scriptObj.Destroy = function(self)
+                if AntiKickEnabled then
+                    warn("[Apex] Script destroy blocked")
+                    return nil
+                end
+                return oldDestroy(self)
+            end
+        end
+    end
+
+    -- Блокировка изменения WalkSpeed/JumpPower через анти-чит
+    local function FreezeSpeedDetection()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            local humanoid = LocalPlayer.Character.Humanoid
+            local oldWalkSpeed = humanoid.WalkSpeed
+            local oldJumpPower = humanoid.JumpPower
+            
+            humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                if AntiKickEnabled and humanoid.WalkSpeed ~= oldWalkSpeed then
+                    humanoid.WalkSpeed = oldWalkSpeed
+                end
+            end)
+            
+            humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
+                if AntiKickEnabled and humanoid.JumpPower ~= oldJumpPower then
+                    humanoid.JumpPower = oldJumpPower
+                end
+            end)
+        end
+    end
+
+    -- Защита от обнаружения через GetObjects
+    local function ProtectGameObjects()
+        local oldGetObjects = game.GetObjects
+        game.GetObjects = function(self, ...)
+            local result = oldGetObjects(self, ...)
+            if AntiKickEnabled then
+                for i, obj in pairs(result) do
+                    if obj:IsA("Script") and (obj.Name:lower():find("kick") or obj.Name:lower():find("detect")) then
+                        table.remove(result, i)
+                    end
+                end
+            end
+            return result
+        end
+    end
+
+    -- Запуск всех защит
+    BlockKick()
+    BlockPlayerRemove()
+    BlockForcedTeleport()
+    DisableDetectionRemotes()
+    ProtectScript()
+    ProtectGameObjects()
+    
+    -- Периодическая перезащита
+    spawn(function()
+        while AntiKickEnabled do
+            wait(3)
+            DisableDetectionRemotes()
+            if not LocalPlayer.Parent then
+                LocalPlayer.Parent = Players
+            end
+        end
+    end)
+end
+
+-- Инициализация Anti-Kick
+local function InitAntiKick()
+    if AntiKickEnabled then
+        BypassAntiCheat()
+        Rayfield:Notify({Title = "Protection", Content = "Anti-Kick activated - you are immune", Duration = 3})
+    end
+end
+
+-- Дополнительная защита: удаление детекторов при старте
+spawn(function()
+    wait(2)
+    for _, remote in pairs(game:GetDescendants()) do
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            local name = remote.Name:lower()
+            if name:find("kick") or name:find("ban") or name:find("detect") or 
+               name:find("anticheat") or name:find("anti") or name:find("exploit") then
+                remote:Destroy()
+            end
+        end
+    end
+end)
+
+---------------------------------------------------------
 -- TABS
 ---------------------------------------------------------
 local MainTab = Window:CreateTab("Movement & Cam", 4483362458)
@@ -68,6 +236,66 @@ local PlayersTab = Window:CreateTab("Players & TP", 4483362458)
 local GamesTab = Window:CreateTab("Game Utilities", 4483362458)
 local MusicTab = Window:CreateTab("Music Player", 4483362458)
 local FunTab = Window:CreateTab("Fun", 4483362458)
+local ProtectionTab = Window:CreateTab("Protection", 4483362458)
+
+---------------------------------------------------------
+-- PROTECTION TAB (Anti-Kick & Anti-Cheat)
+---------------------------------------------------------
+ProtectionTab:CreateSection("Anti-Cheat Bypass")
+
+ProtectionTab:CreateToggle({
+   Name = "Anti-Kick Toggle (Bypass ALL kicks)",
+   CurrentValue = false,
+   Flag = "AntiKickToggle",
+   Callback = function(Value)
+      AntiKickEnabled = Value
+      if Value then
+         InitAntiKick()
+      else
+         Rayfield:Notify({Title = "Protection", Content = "Anti-Kick deactivated", Duration = 3})
+      end
+   end,
+})
+
+ProtectionTab:CreateButton({
+   Name = "Force Reapply Protection",
+   Callback = function()
+      if AntiKickEnabled then
+         BypassAntiCheat()
+         Rayfield:Notify({Title = "Protection", Content = "Protection reapplied", Duration = 3})
+      else
+         Rayfield:Notify({Title = "Protection", Content = "Enable Anti-Kick first", Duration = 3})
+      end
+   end,
+})
+
+ProtectionTab:CreateButton({
+   Name = "Destroy All Detection Remotes",
+   Callback = function()
+      local count = 0
+      for _, remote in pairs(game:GetDescendants()) do
+         if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            local name = remote.Name:lower()
+            if name:find("kick") or name:find("ban") or name:find("detect") or 
+               name:find("anticheat") or name:find("anti") or name:find("exploit") then
+                remote:Destroy()
+                count = count + 1
+            end
+         end
+      end
+      Rayfield:Notify({Title = "Protection", Content = "Destroyed " .. tostring(count) .. " remotes", Duration = 3})
+   end,
+})
+
+ProtectionTab:CreateButton({
+   Name = "Block All Incoming Kicks",
+   Callback = function()
+      if AntiKickEnabled then
+         game:GetService("CoreGui"):SetCore("Kick", function() end)
+         Rayfield:Notify({Title = "Protection", Content = "All kick events blocked", Duration = 3})
+      end
+   end,
+})
 
 ---------------------------------------------------------
 -- 1. MOVEMENT & CAMERA TAB
@@ -457,7 +685,6 @@ local angleCounter = 0
 RunService.RenderStepped:Connect(function(deltaTime)
    angleCounter = angleCounter + deltaTime
 
-   -- Distort Screen Logic
    if DistortScreenToggle then
       local cam = Workspace.CurrentCamera
       if cam then
@@ -465,7 +692,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
       end
    end
 
-   -- Wiggle Screen Logic
    if WiggleScreenToggle then
       local cam = Workspace.CurrentCamera
       if cam then
@@ -477,12 +703,10 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 RunService.Stepped:Connect(function()
-   -- Force Speed
    if ForceSpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
       LocalPlayer.Character.Humanoid.WalkSpeed = TargetSpeed
    end
 
-   -- Noclip
    if NoclipEnabled and LocalPlayer.Character then
       for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
          if part:IsA("BasePart") and part.CanCollide then
@@ -491,7 +715,6 @@ RunService.Stepped:Connect(function()
       end
    end
 
-   -- Fullbright
    if FullbrightEnabled then
       Lighting.Ambient = Color3.fromRGB(255, 255, 255)
       Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
@@ -499,14 +722,12 @@ RunService.Stepped:Connect(function()
       Lighting.ClockTime = 14
    end
 
-   -- Loop Teleport
    if LoopTPEnabled and SelectedPlayerForTP and SelectedPlayerForTP.Character and SelectedPlayerForTP.Character:FindFirstChild("HumanoidRootPart") then
       if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
          LocalPlayer.Character.HumanoidRootPart.CFrame = SelectedPlayerForTP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
       end
    end
 
-   -- Distort Audio Logic
    if DistortAudioToggle then
       for _, sound in pairs(Workspace:GetDescendants()) do
          if sound:IsA("Sound") and sound.IsPlaying then
@@ -515,7 +736,6 @@ RunService.Stepped:Connect(function()
       end
    end
 
-   -- Wiggle Audio Logic
    if WiggleAudioToggle then
       local speedMod = 1 + math.sin(tick() * 10) * 0.4
       for _, sound in pairs(Workspace:GetDescendants()) do
@@ -531,12 +751,10 @@ end)
 ---------------------------------------------------------
 task.spawn(function()
    while task.wait(0.5) do
-      -- Dynamic Player & Name ESP (With Piggy Fix)
       if ESPEnabled then
          for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
                
-               -- Check for Piggy/Killer explicitly to prevent showing as Friendly
                local charName = player.Character.Name:lower()
                local pName = player.Name:lower()
                local isPiggyOrKiller = charName:find("piggy") or pName:find("piggy") or charName:find("killer") or charName:find("banana") or player.Character:FindFirstChild("Weapon") or player.Character:FindFirstChild("Bat")
@@ -553,7 +771,6 @@ task.spawn(function()
                local statusTag = isFriendly and "[ Friendly ]" or "[ Enemy ]"
                local tagColor = isFriendly and Color3.fromRGB(0, 255, 128) or Color3.fromRGB(255, 50, 50)
 
-               -- Highlight
                local highlight = player.Character:FindFirstChild("ApexESP")
                if not highlight then
                   highlight = Instance.new("Highlight")
@@ -562,7 +779,6 @@ task.spawn(function()
                end
                highlight.FillColor = tagColor
 
-               -- Name Tag
                local head = player.Character.Head
                local nameGui = head:FindFirstChild("ApexNameESP")
                if not nameGui then
@@ -597,7 +813,6 @@ task.spawn(function()
          end
       end
 
-      -- Game Utilities Toggles Execution
       if UtilityItemsToggle then
          for _, item in pairs(Workspace:GetDescendants()) do
             if item:IsA("ClickDetector") or item:IsA("ProximityPrompt") or item:IsA("Tool") then
@@ -662,6 +877,6 @@ end)
 
 Rayfield:Notify({
    Title = "Apex Hub V3 Loaded",
-   Content = "Fun tab added & utilities converted to toggles!",
+   Content = "Anti-Kick protection added - you are immune to kicks!",
    Duration = 4,
 })
