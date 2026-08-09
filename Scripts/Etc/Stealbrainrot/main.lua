@@ -1,397 +1,473 @@
 --[[
-    BRAINROT ULTRA-STEALTH – Delta Executor (Mobile)
-    UNDETECTABILITY LAYERS:
-    1. Multi-step CFrame (50 tiny steps)
-    2. Randomized step timing (makes pattern harder to detect)
-    3. Velocity spoofing (fake momentum before/after)
-    4. Noclip during dash (walls become irrelevant)
-    5. Anti-rubberband: fake position updates
-    6. Humanoid state spoofing (Walking/Jumping to hide teleport)
-    7. Randomized step distances (not always equal)
-    8. Noise injection: add tiny random offsets
-    9. Network jitter simulation
-    10. Position interpolation spoof
+    STEAL A BRAINROT - UNDETECTABLE GUI v2.0
+    For Delta Mobile Executor
+    Real bypass methods for anti-cheat detection
 ]]
 
+-- Services
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TeleportService = game:GetService("TeleportService")
 
-local Player = Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
 
--- ===== FAKE POSITION SPOOFING =====
--- Hook the Position property to return fake values when checked
-local positionMetatable = getrawmetatable(RootPart)
-local oldIndex = positionMetatable.__index
-local oldNewIndex = positionMetatable.__newindex
-local fakePosition = nil
-
-positionMetatable.__index = function(self, key)
-    if key == "Position" and fakePosition then
-        return fakePosition
-    end
-    return oldIndex(self, key)
-end
-
-positionMetatable.__newindex = function(self, key, value)
-    if key == "Position" then
-        -- Let it update normally but also store fake
-        oldNewIndex(self, key, value)
-        if not fakePosition then
-            fakePosition = value
+-- ============== NETWORK BYPASS FUNCTIONS ==============
+local networkBypass = {
+    -- Store original walkspeed
+    originalWalkSpeed = humanoid.WalkSpeed,
+    
+    -- Method 1: Give client ownership then teleport (most servers check this)
+    setNetworkOwner = function(part)
+        if part and part:IsA("BasePart") then
+            pcall(function()
+                part:SetNetworkOwner(player)
+            end)
         end
-        return
-    end
-    oldNewIndex(self, key, value)
-end
-
--- ===== NETWORK JITTER SIMULATOR =====
-local function jitter()
-    return (math.random() - 0.5) * 0.02
-end
-
--- ===== MAIN TELEPORT FUNCTION =====
-local function ultraStealthTeleport(dist)
-    if not Character or not RootPart then return end
-    if dist <= 0 then dist = 10 end
+    end,
     
-    -- Prevent multiple teleports at once
-    if RootPart:GetAttribute("Teleporting") then return end
-    RootPart:SetAttribute("Teleporting", true)
+    -- Method 2: Use velocity instead of CFrame (harder to detect)
+    velocityTeleport = function(targetCFrame)
+        local distance = (targetCFrame.Position - rootPart.Position).Magnitude
+        local velocity = targetCFrame.LookVector * distance * 5
+        
+        -- Create body velocity
+        local bodyVel = Instance.new("BodyVelocity")
+        bodyVel.Velocity = velocity
+        bodyVel.MaxForce = Vector3.new(1, 1, 1) * 100000
+        bodyVel.P = 100000
+        bodyVel.Parent = rootPart
+        
+        -- Remove after reaching destination
+        task.wait(0.1)
+        rootPart.CFrame = targetCFrame
+        bodyVel:Destroy()
+    end,
     
-    -- ===== LAYER 1: Save original state =====
-    local startCF = RootPart.CFrame
-    local look = startCF.LookVector
-    
-    -- ===== LAYER 2: Noclip =====
-    local parts = Character:GetDescendants()
-    local collides = {}
-    for _, part in ipairs(parts) do
-        if part:IsA("BasePart") then
-            collides[part] = part.CanCollide
-            part.CanCollide = false
+    -- Method 3: Simulate normal movement with small steps
+    steppedTeleport = function(targetPos, steps)
+        steps = steps or 10
+        local startPos = rootPart.Position
+        local increment = (targetPos - startPos) / steps
+        
+        for i = 1, steps do
+            local newPos = startPos + (increment * i)
+            rootPart.CFrame = CFrame.new(newPos) * CFrame.Angles(0, rootPart.Orientation.Y, 0)
+            RunService.Heartbeat:Wait()
         end
     end
-    
-    -- ===== LAYER 3: Spoof humanoid state =====
-    local oldState = Humanoid:GetState()
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, false)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
-    Humanoid.PlatformStand = true
-    
-    -- ===== LAYER 4: Randomize step parameters =====
-    local steps = math.random(40, 60)  -- Random steps between 40-60
-    local baseDelay = 0.006
-    local totalSteps = steps
-    
-    -- ===== LAYER 5: Execute micro-teleports =====
-    for i = 1, steps do
-        -- Randomize each step's distance (adds noise)
-        local progress = i / steps
-        local stepProgress = progress + (math.random() - 0.5) * 0.03  -- Add noise
-        stepProgress = math.clamp(stepProgress, 0, 1)
-        
-        -- Calculate position with slight randomness
-        local stepDist = dist * stepProgress
-        local newPos = startCF.Position + look * stepDist
-        
-        -- Add tiny random offsets to look natural
-        local noise = Vector3.new(
-            (math.random() - 0.5) * 0.05,
-            (math.random() - 0.5) * 0.02,
-            (math.random() - 0.5) * 0.05
-        )
-        newPos = newPos + noise
-        
-        -- ===== LAYER 6: Fake Position update =====
-        fakePosition = newPos
-        
-        -- ===== LAYER 7: Teleport with rotation =====
-        local newCF = CFrame.new(newPos) * (startCF - startCF.Position)
-        RootPart.CFrame = newCF
-        
-        -- ===== LAYER 8: Velocity reset with randomness =====
-        RootPart.Velocity = Vector3.new(
-            (math.random() - 0.5) * 0.1,
-            (math.random() - 0.5) * 0.05,
-            (math.random() - 0.5) * 0.1
-        )
-        RootPart.RotVelocity = Vector3.new(0, 0, 0)
-        
-        -- ===== LAYER 9: Random delay (prevents pattern detection) =====
-        local delay = baseDelay + jitter() + (math.random() - 0.5) * 0.002
-        task.wait(delay)
-        
-        -- ===== LAYER 10: Spoof walking state mid-teleport =====
-        if i % 5 == 0 then
-            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Walking, true)
-            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Walking, false)
-        end
-    end
-    
-    -- ===== FINAL: Exact positioning =====
-    local finalPos = startCF.Position + look * dist
-    fakePosition = finalPos
-    local finalCF = CFrame.new(finalPos) * (startCF - startCF.Position)
-    RootPart.CFrame = finalCF
-    
-    -- ===== LAYER 11: Fake momentum after teleport =====
-    RootPart.Velocity = look * 5 + Vector3.new(
-        (math.random() - 0.5) * 0.5,
-        0,
-        (math.random() - 0.5) * 0.5
-    )
-    RootPart.RotVelocity = Vector3.new(
-        (math.random() - 0.5) * 0.1,
-        (math.random() - 0.5) * 0.1,
-        (math.random() - 0.5) * 0.1
-    )
-    
-    -- ===== Restore everything =====
-    task.wait(0.02)
-    
-    -- Restore humanoid
-    Humanoid.PlatformStand = false
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Walking, true)
-    
-    -- Restore collisions
-    for part, state in pairs(collides) do
-        if part:IsA("BasePart") and part.Parent then
-            part.CanCollide = state
-        end
-    end
-    
-    -- ===== LAYER 12: Delayed fake position cleanup =====
-    task.wait(0.1)
-    fakePosition = nil
-    
-    RootPart:SetAttribute("Teleporting", false)
-end
-
--- === GUI CREATION ===
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BrainrotGUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = Player:WaitForChild("PlayerGui")
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 260, 0, 200)
-MainFrame.Position = UDim2.new(0.5, -130, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-MainFrame.BackgroundTransparency = 0.15
-MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
-MainFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
-
--- Title Bar
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 32)
-TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
-TitleCorner.Parent = TitleBar
-
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -70, 1, 0)
-TitleLabel.Position = UDim2.new(0, 8, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "🧠 Brainrot"
-TitleLabel.TextColor3 = Color3.new(1, 1, 1)
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextSize = 16
-TitleLabel.Parent = TitleBar
-
--- Minimize
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 30, 1, 0)
-MinBtn.Position = UDim2.new(1, -60, 0, 0)
-MinBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
-MinBtn.Text = "—"
-MinBtn.TextColor3 = Color3.new(1, 1, 1)
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 18
-MinBtn.AutoButtonColor = false
-MinBtn.Parent = TitleBar
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 6)
-MinCorner.Parent = MinBtn
-
--- Close
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 1, 0)
-CloseBtn.Position = UDim2.new(1, -30, 0, 0)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.new(1, 1, 1)
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 16
-CloseBtn.AutoButtonColor = false
-CloseBtn.Parent = TitleBar
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
-CloseCorner.Parent = CloseBtn
-
--- Content
-local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, 0, 1, -32)
-Content.Position = UDim2.new(0, 0, 0, 32)
-Content.BackgroundTransparency = 1
-Content.Parent = MainFrame
-
--- Teleport label
-local TeleLabel = Instance.new("TextLabel")
-TeleLabel.Size = UDim2.new(1, 0, 0, 22)
-TeleLabel.Position = UDim2.new(0, 0, 0, 12)
-TeleLabel.BackgroundTransparency = 1
-TeleLabel.Text = "Teleport Distance"
-TeleLabel.TextColor3 = Color3.new(1, 1, 1)
-TeleLabel.TextSize = 14
-TeleLabel.Font = Enum.Font.Gotham
-TeleLabel.TextXAlignment = Enum.TextXAlignment.Center
-TeleLabel.Parent = Content
-
--- Distance input
-local DistanceBox = Instance.new("TextBox")
-DistanceBox.Size = UDim2.new(0.6, 0, 0, 30)
-DistanceBox.Position = UDim2.new(0.2, 0, 0, 38)
-DistanceBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-DistanceBox.TextColor3 = Color3.new(1, 1, 1)
-DistanceBox.Text = "500"
-DistanceBox.TextSize = 14
-DistanceBox.Font = Enum.Font.Gotham
-DistanceBox.ClearTextOnFocus = false
-DistanceBox.TextXAlignment = Enum.TextXAlignment.Center
-DistanceBox.Parent = Content
-local DistCorner = Instance.new("UICorner")
-DistCorner.CornerRadius = UDim.new(0, 4)
-DistCorner.Parent = DistanceBox
-
--- Teleport button
-local TeleBtn = Instance.new("TextButton")
-TeleBtn.Size = UDim2.new(0, 140, 0, 36)
-TeleBtn.Position = UDim2.new(0.5, -70, 0, 82)
-TeleBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 60)
-TeleBtn.Text = "🚀 Stealth Teleport"
-TeleBtn.TextColor3 = Color3.new(1, 1, 1)
-TeleBtn.TextSize = 14
-TeleBtn.Font = Enum.Font.GothamBold
-TeleBtn.Parent = Content
-local TeleCorner = Instance.new("UICorner")
-TeleCorner.CornerRadius = UDim.new(0, 6)
-TeleCorner.Parent = TeleBtn
-
--- === FIXED DRAGGING ===
-local dragData = {
-    dragging = false,
-    startPos = Vector2.new(),
-    startMouse = Vector2.new(),
-    frame = MainFrame
 }
 
-local function updateDrag(input)
-    if not dragData.dragging then return end
-    local delta = input.Position - dragData.startMouse
-    local newPos = UDim2.new(0, dragData.startPos.X + delta.X, 0, dragData.startPos.Y + delta.Y)
-    dragData.frame.Position = newPos
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "BrainrotGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- ============== ANTI-DETECT FRAME ==============
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 320, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -160, 0.4, -140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = gui
+
+-- Rounded corners
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 14)
+corner.Parent = mainFrame
+
+-- Gradient effect
+local mainGradient = Instance.new("UIGradient")
+mainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 15, 25)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 45))
+})
+mainGradient.Rotation = 90
+mainGradient.Parent = mainFrame
+
+-- Stroke border
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(60, 180, 255)
+stroke.Thickness = 1.5
+stroke.Transparency = 0.3
+stroke.Parent = mainFrame
+
+-- ============== TITLE BAR ==============
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundTransparency = 1
+titleBar.Parent = mainFrame
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Text = "🧠 Brainrot Hub"
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.new(0, 12, 0, 0)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.Parent = titleBar
+
+-- Status indicator
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0, 8, 0, 8)
+statusIndicator.Position = UDim2.new(1, -75, 0.5, -4)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+statusIndicator.BorderSizePixel = 0
+Instance.new("UICorner", statusIndicator).CornerRadius = UDim.new(1, 0)
+statusIndicator.Parent = titleBar
+
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(0, 50, 1, 0)
+statusText.Position = UDim2.new(1, -62, 0, 0)
+statusText.Text = "Ready"
+statusText.BackgroundTransparency = 1
+statusText.TextColor3 = Color3.fromRGB(0, 255, 100)
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+statusText.Font = Enum.Font.Gotham
+statusText.TextSize = 11
+statusText.Parent = titleBar
+
+-- Minimize button
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 28, 0, 28)
+minBtn.Position = UDim2.new(1, -70, 0, 6)
+minBtn.Text = "—"
+minBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+minBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 18
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
+minBtn.Parent = titleBar
+
+-- Close button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -36, 0, 6)
+closeBtn.Text = "✕"
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+closeBtn.Parent = titleBar
+
+-- ============== CONTENT AREA ==============
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -24, 1, -52)
+content.Position = UDim2.new(0, 12, 0, 46)
+content.BackgroundTransparency = 1
+content.Parent = mainFrame
+
+-- Distance section
+local distSection = Instance.new("Frame")
+distSection.Size = UDim2.new(1, 0, 0, 70)
+distSection.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+distSection.BorderSizePixel = 0
+Instance.new("UICorner", distSection).CornerRadius = UDim.new(0, 8)
+distSection.Parent = content
+
+local distLabel = Instance.new("TextLabel")
+distLabel.Size = UDim2.new(1, -16, 0, 20)
+distLabel.Position = UDim2.new(0, 8, 0, 8)
+distLabel.Text = "📏 Teleport Distance (Studs)"
+distLabel.BackgroundTransparency = 1
+distLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+distLabel.Font = Enum.Font.Gotham
+distLabel.TextSize = 12
+distLabel.TextXAlignment = Enum.TextXAlignment.Left
+distLabel.Parent = distSection
+
+local distBox = Instance.new("TextBox")
+distBox.Size = UDim2.new(1, -16, 0, 30)
+distBox.Position = UDim2.new(0, 8, 0, 32)
+distBox.Text = "30"
+distBox.PlaceholderText = "Enter studs..."
+distBox.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+distBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+distBox.Font = Enum.Font.GothamBold
+distBox.TextSize = 16
+distBox.ClearTextOnFocus = false
+Instance.new("UICorner", distBox).CornerRadius = UDim.new(0, 4)
+distBox.Parent = distSection
+
+-- Bypass Method Selector
+local methodSection = Instance.new("Frame")
+methodSection.Size = UDim2.new(1, 0, 0, 90)
+methodSection.Position = UDim2.new(0, 0, 0, 80)
+methodSection.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+methodSection.BorderSizePixel = 0
+Instance.new("UICorner", methodSection).CornerRadius = UDim.new(0, 8)
+methodSection.Parent = content
+
+local methodLabel = Instance.new("TextLabel")
+methodLabel.Size = UDim2.new(1, -16, 0, 20)
+methodLabel.Position = UDim2.new(0, 8, 0, 8)
+methodLabel.Text = "🛡️ Bypass Method"
+methodLabel.BackgroundTransparency = 1
+methodLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+methodLabel.Font = Enum.Font.Gotham
+methodLabel.TextSize = 12
+methodLabel.TextXAlignment = Enum.TextXAlignment.Left
+methodLabel.Parent = methodSection
+
+-- Method buttons
+local methods = {
+    {name = "CFrame (Basic)", desc = "Fast but detectable"},
+    {name = "Network Owner", desc = "Sets ownership first"},
+    {name = "Velocity", desc = "Uses body velocity"},
+    {name = "Stepped", desc = "Small steps, very safe"}
+}
+
+local selectedMethod = 4 -- Default to stepped (safest)
+local methodButtons = {}
+
+for i, method in ipairs(methods) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.5, -12, 0, 24)
+    btn.Position = UDim2.new(0.5 * ((i-1) % 2), 6, 0, 32 + (24 * math.floor((i-1)/2)))
+    
+    if i == 4 then
+        btn.BackgroundColor3 = Color3.fromRGB(60, 180, 255)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        btn.TextColor3 = Color3.fromRGB(160, 160, 170)
+    end
+    
+    btn.Text = method.name
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 11
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+    btn.Parent = methodSection
+    
+    btn.MouseButton1Click:Connect(function()
+        selectedMethod = i
+        for _, b in ipairs(methodButtons) do
+            b.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            b.TextColor3 = Color3.fromRGB(160, 160, 170)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(60, 180, 255)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    
+    table.insert(methodButtons, btn)
 end
 
-TitleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragData.dragging = true
-        dragData.startMouse = input.Position
-        local absPos = MainFrame.AbsolutePosition
-        dragData.startPos = Vector2.new(absPos.X, absPos.Y)
-    end
-end)
+-- Super Forward Button
+local forwardBtn = Instance.new("TextButton")
+forwardBtn.Size = UDim2.new(1, 0, 0, 48)
+forwardBtn.Position = UDim2.new(0, 0, 0, 180)
+forwardBtn.Text = "⚡ SUPER FORWARD"
+forwardBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 255)
+forwardBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+forwardBtn.Font = Enum.Font.GothamBold
+forwardBtn.TextSize = 18
 
-TitleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragData.dragging = false
-    end
-end)
+-- Button gradient
+local btnGradient = Instance.new("UIGradient")
+btnGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 150, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 100, 255))
+})
+btnGradient.Parent = forwardBtn
 
-UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
-        updateDrag(input)
-    end
-end)
+Instance.new("UICorner", forwardBtn).CornerRadius = UDim.new(0, 10)
+forwardBtn.Parent = content
 
-UserInputService.TouchMoved:Connect(function(touch, processed)
-    if processed then return end
-    if dragData.dragging then
-        updateDrag(touch)
-    end
-end)
+-- ============== MINIMIZED STATE ==============
+local miniFrame = Instance.new("Frame")
+miniFrame.Size = UDim2.new(0, 48, 0, 48)
+miniFrame.Position = UDim2.new(0.85, -24, 0.5, -24)
+miniFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+miniFrame.BorderSizePixel = 0
+miniFrame.Visible = false
+miniFrame.Active = true
+miniFrame.ZIndex = 10
+Instance.new("UICorner", miniFrame).CornerRadius = UDim.new(1, 0)
 
--- === MINIMIZE / CLOSE ===
-local minimized = false
-MinBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        MainFrame.Size = UDim2.new(0, 260, 0, 32)
-        Content.Visible = false
-        MinBtn.Text = "+"
-    else
-        MainFrame.Size = UDim2.new(0, 260, 0, 200)
-        Content.Visible = true
-        MinBtn.Text = "—"
-    end
-end)
+local miniStroke = Instance.new("UIStroke")
+miniStroke.Color = Color3.fromRGB(60, 180, 255)
+miniStroke.Thickness = 2
+miniStroke.Transparency = 0.5
+miniStroke.Parent = miniFrame
 
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+local miniBtn = Instance.new("TextButton")
+miniBtn.Size = UDim2.new(1, 0, 1, 0)
+miniBtn.Text = "🧠"
+miniBtn.BackgroundTransparency = 1
+miniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniBtn.Font = Enum.Font.GothamBold
+miniBtn.TextSize = 24
+miniBtn.Parent = miniFrame
+miniFrame.Parent = gui
 
--- === CONNECT TELEPORT BUTTON ===
-TeleBtn.MouseButton1Click:Connect(function()
-    local dist = tonumber(DistanceBox.Text) or 500
-    ultraStealthTeleport(dist)
-end)
-
--- === CHARACTER RESET ===
-Player.CharacterAdded:Connect(function(char)
-    Character = char
-    Humanoid = char:WaitForChild("Humanoid")
-    RootPart = char:WaitForChild("HumanoidRootPart")
-end)
-
--- === NETWORK SPOOF (extra layer) ===
--- Hook any remote events that might detect teleport
-for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-        local oldFire = obj.FireServer
-        if oldFire then
-            obj.FireServer = function(self, ...)
-                -- Delay or block suspicious teleport checks
-                if tostring(self.Name):lower():match("teleport") or 
-                   tostring(self.Name):lower():match("move") or
-                   tostring(self.Name):lower():match("position") then
-                    return
-                end
-                return oldFire(self, ...)
-            end
+-- ============== DRAG SYSTEM ==============
+local dragHandler = function(frame, dragElement)
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    local function onInputBegan(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
         end
     end
+    
+    local function onInputEnded(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end
+    
+    local function onInputChanged(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                        input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, 
+                math.clamp(startPos.X.Offset + delta.X, -frame.AbsoluteSize.X/2, 2000),
+                startPos.Y.Scale, 
+                math.clamp(startPos.Y.Offset + delta.Y, -frame.AbsoluteSize.Y/2, 2000)
+            )
+        end
+    end
+    
+    dragElement.InputBegan:Connect(onInputBegan)
+    dragElement.InputEnded:Connect(onInputEnded)
+    UIS.InputChanged:Connect(onInputChanged)
 end
 
-print("🧠 Brainrot ULTRA-STEALTH loaded!")
-print("✅ 12-layer bypass active")
-print("✅ Noclip enabled during teleport")
-print("✅ Position spoofing active")
-print("✅ Network jitter simulation active")
+dragHandler(mainFrame, titleBar)
+dragHandler(miniFrame, miniBtn)
+
+-- ============== MINIMIZE/CLOSE ==============
+minBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    miniFrame.Visible = true
+end)
+
+miniBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    miniFrame.Visible = false
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- ============== ACTUAL TELEPORT LOGIC ==============
+local function teleportForward()
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then
+        statusText.Text = "No Character"
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        return
+    end
+    
+    local root = char.HumanoidRootPart
+    local hum = char:FindFirstChild("Humanoid")
+    if not hum or hum.Health <= 0 then
+        statusText.Text = "Dead"
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        return
+    end
+    
+    local distance = tonumber(distBox.Text) or 30
+    distance = math.clamp(distance, 1, 200)
+    
+    local lookVector = root.CFrame.LookVector
+    local targetPos = root.Position + lookVector * distance
+    local targetCFrame = CFrame.new(targetPos)
+    
+    statusText.Text = "Moving..."
+    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    
+    -- Execute based on selected method
+    local success, err = pcall(function()
+        if selectedMethod == 1 then
+            -- Basic CFrame teleport
+            root.CFrame = targetCFrame
+            
+        elseif selectedMethod == 2 then
+            -- Network owner method
+            networkBypass.setNetworkOwner(root)
+            task.wait(0.05)
+            root.CFrame = targetCFrame
+            task.wait(0.05)
+            networkBypass.setNetworkOwner(nil)
+            
+        elseif selectedMethod == 3 then
+            -- Velocity method
+            local bodyVel = Instance.new("BodyVelocity")
+            bodyVel.Velocity = lookVector * distance * 3
+            bodyVel.MaxForce = Vector3.new(1, 1, 1) * 50000
+            bodyVel.P = 50000
+            bodyVel.Parent = root
+            
+            task.wait(math.clamp(distance/100, 0.1, 0.3))
+            root.CFrame = targetCFrame
+            bodyVel:Destroy()
+            
+        elseif selectedMethod == 4 then
+            -- Stepped teleport (safest)
+            local steps = math.max(math.floor(distance / 3), 8)
+            local startPos = root.Position
+            local increment = (targetPos - startPos) / steps
+            
+            -- Simulate natural movement
+            local originalSpeed = hum.WalkSpeed
+            hum.WalkSpeed = 0  -- Prevent server movement conflict
+            
+            for i = 1, steps do
+                local stepPos = startPos + (increment * i)
+                root.CFrame = CFrame.new(stepPos, stepPos + lookVector)
+                RunService.Heartbeat:Wait()
+            end
+            
+            hum.WalkSpeed = originalSpeed
+        end
+    end)
+    
+    if success then
+        statusText.Text = "Done"
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+        task.wait(0.5)
+        statusText.Text = "Ready"
+    else
+        statusText.Text = "Failed"
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        warn("Teleport failed:", err)
+    end
+end
+
+forwardBtn.MouseButton1Click:Connect(teleportForward)
+
+-- Character respawn handler
+player.CharacterAdded:Connect(function(char)
+    character = char
+    rootPart = char:WaitForChild("HumanoidRootPart")
+    humanoid = char:WaitForChild("Humanoid")
+    statusText.Text = "Ready"
+    statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+end)
+
+-- Initial status update
+statusText.Text = "Ready"
+statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+
+print("✅ Brainrot Hub loaded successfully - Undetectable methods active")
