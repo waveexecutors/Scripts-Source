@@ -1,568 +1,442 @@
--- Modern Draggable Minizable Closable GUI for Roblox Mobile
+-- Modern Mobile Dark-Mode Item Spawner Hub
+-- Features: Draggable, Minimizable, Closable, Folder Navigation, Search, Loop/Glitch Spawner
+
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-
--- Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
--- Variables
-local isDragging = false
-local dragStart = nil
-local startPos = nil
-local isMinimized = false
-local currentMode = "normal" -- "normal" or "advanced"
-local currentItem = nil
-local currentFolder = nil
-local isLooping = false
-local loopConnection = nil
-local isGlitchy = false
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Main ScreenGui
+-- Prevent duplicate UI instances
+if PlayerGui:FindFirstChild("ItemSpawnerHub") then
+    PlayerGui.ItemSpawnerHub:Destroy()
+end
+
+-- State Variables
+local CurrentMode = nil -- "Normal" or "Advanced"
+local SelectedItem = nil
+local IsLoopSpawning = false
+local IsGlitchLooping = false
+
+-- Theme Colors
+local Theme = {
+    Background = Color3.fromRGB(24, 24, 28),
+    Secondary = Color3.fromRGB(32, 32, 38),
+    Accent = Color3.fromRGB(90, 105, 246),
+    Text = Color3.fromRGB(240, 240, 240),
+    TextDark = Color3.fromRGB(160, 160, 170),
+    Close = Color3.fromRGB(235, 75, 75),
+    Minimize = Color3.fromRGB(240, 180, 50)
+}
+
+-- ScreenGui Setup
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ModernSpawnGUI"
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Name = "ItemSpawnerHub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
--- Main Frame (Draggable)
+-- Main Container Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 350, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -250)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-MainFrame.BackgroundTransparency = 0.95
+MainFrame.Size = UDim2.new(0, 360, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -210)
+MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
--- Corner
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = MainFrame
+local MainUICorner = Instance.new("UICorner", MainFrame)
+MainUICorner.CornerRadius = UDim.new(0, 12)
 
--- Shadow
-local Shadow = Instance.new("ImageLabel")
-Shadow.Name = "Shadow"
-Shadow.Size = UDim2.new(1, 20, 1, 20)
-Shadow.Position = UDim2.new(0, -10, 0, -10)
-Shadow.BackgroundTransparency = 1
-Shadow.Image = "rbxassetid://13160448178"
-Shadow.ImageTransparency = 0.7
-Shadow.ZIndex = 0
-Shadow.Parent = MainFrame
+-- Make Window Draggable (Mobile & PC Compatible)
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.BackgroundColor3 = Theme.Secondary
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
 
--- Header
-local Header = Instance.new("Frame")
-Header.Name = "Header"
-Header.Size = UDim2.new(1, 0, 0, 40)
-Header.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-Header.BackgroundTransparency = 0.3
-Header.BorderSizePixel = 0
-Header.Parent = MainFrame
+local TopBarCorner = Instance.new("UICorner", TopBar)
+TopBarCorner.CornerRadius = UDim.new(0, 12)
 
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 12)
-HeaderCorner.Parent = Header
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -90, 1, 0)
+TitleLabel.Position = UDim2.new(0, 12, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Item Spawner Hub"
+TitleLabel.TextColor3 = Theme.Text
+TitleLabel.TextSize = 16
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TopBar
 
-local Title = Instance.new("TextLabel")
-Title.Name = "Title"
-Title.Size = UDim2.new(1, -80, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Spawn Manager"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 18
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Font = Enum.Font.GothamSemibold
-Title.Parent = Header
+-- Minimize & Close Buttons
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 28, 0, 28)
+MinimizeBtn.Position = UDim2.new(1, -64, 0, 6)
+MinimizeBtn.BackgroundColor3 = Theme.Minimize
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.TextSize = 18
+MinimizeBtn.Parent = TopBar
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
 
--- Minimize Button
-local MinimizeButton = Instance.new("ImageButton")
-MinimizeButton.Name = "MinimizeButton"
-MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
-MinimizeButton.Position = UDim2.new(1, -70, 0, 5)
-MinimizeButton.BackgroundTransparency = 1
-MinimizeButton.Image = "rbxassetid://6031090933"
-MinimizeButton.ImageColor3 = Color3.fromRGB(200, 200, 200)
-MinimizeButton.Parent = Header
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -32, 0, 6)
+CloseBtn.BackgroundColor3 = Theme.Close
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.Parent = TopBar
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 
--- Close Button
-local CloseButton = Instance.new("ImageButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -35, 0, 5)
-CloseButton.BackgroundTransparency = 1
-CloseButton.Image = "rbxassetid://6031090837"
-CloseButton.ImageColor3 = Color3.fromRGB(255, 80, 80)
-CloseButton.Parent = Header
-
--- Content Container
-local ContentContainer = Instance.new("ScrollingFrame")
-ContentContainer.Name = "ContentContainer"
-ContentContainer.Size = UDim2.new(1, -20, 1, -60)
-ContentContainer.Position = UDim2.new(0, 10, 0, 50)
-ContentContainer.BackgroundTransparency = 1
-ContentContainer.ScrollBarThickness = 4
-ContentContainer.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 90)
-ContentContainer.BottomImage = "rbxassetid://"
-ContentContainer.MidImage = "rbxassetid://"
-ContentContainer.TopImage = "rbxassetid://"
-ContentContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
-ContentContainer.Parent = MainFrame
-
--- UIListLayout for Content
-local ContentLayout = Instance.new("UIListLayout")
-ContentLayout.Name = "ContentLayout"
-ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ContentLayout.Padding = UDim.new(0, 8)
-ContentLayout.Parent = ContentContainer
-
--- Mode Selection
-local ModeFrame = Instance.new("Frame")
-ModeFrame.Name = "ModeFrame"
-ModeFrame.Size = UDim2.new(1, 0, 0, 80)
-ModeFrame.BackgroundTransparency = 1
-ModeFrame.Parent = ContentContainer
-
-local ModeLabel = Instance.new("TextLabel")
-ModeLabel.Name = "ModeLabel"
-ModeLabel.Size = UDim2.new(1, 0, 0, 20)
-ModeLabel.Position = UDim2.new(0, 0, 0, 0)
-ModeLabel.BackgroundTransparency = 1
-ModeLabel.Text = "Select Mode:"
-ModeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-ModeLabel.TextSize = 14
-ModeLabel.Font = Enum.Font.Gotham
-ModeLabel.TextXAlignment = Enum.TextXAlignment.Left
-ModeLabel.Parent = ModeFrame
-
-local NormalButton = Instance.new("TextButton")
-NormalButton.Name = "NormalButton"
-NormalButton.Size = UDim2.new(0.45, -5, 0, 35)
-NormalButton.Position = UDim2.new(0, 0, 0, 25)
-NormalButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-NormalButton.Text = "Normal"
-NormalButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-NormalButton.TextSize = 14
-NormalButton.Font = Enum.Font.GothamSemibold
-NormalButton.BorderSizePixel = 0
-NormalButton.Parent = ModeFrame
-
-local NormalCorner = Instance.new("UICorner")
-NormalCorner.CornerRadius = UDim.new(0, 8)
-NormalCorner.Parent = NormalButton
-
-local AdvancedButton = Instance.new("TextButton")
-AdvancedButton.Name = "AdvancedButton"
-AdvancedButton.Size = UDim2.new(0.45, -5, 0, 35)
-AdvancedButton.Position = UDim2.new(0.55, 0, 0, 25)
-AdvancedButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-AdvancedButton.Text = "Advanced"
-AdvancedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AdvancedButton.TextSize = 14
-AdvancedButton.Font = Enum.Font.GothamSemibold
-AdvancedButton.BorderSizePixel = 0
-AdvancedButton.Parent = ModeFrame
-
-local AdvancedCorner = Instance.new("UICorner")
-AdvancedCorner.CornerRadius = UDim.new(0, 8)
-AdvancedCorner.Parent = AdvancedButton
-
--- Items Container
-local ItemsFrame = Instance.new("Frame")
-ItemsFrame.Name = "ItemsFrame"
-ItemsFrame.Size = UDim2.new(1, 0, 0, 0)
-ItemsFrame.BackgroundTransparency = 1
-ItemsFrame.Parent = ContentContainer
-
-local ItemsLabel = Instance.new("TextLabel")
-ItemsLabel.Name = "ItemsLabel"
-ItemsLabel.Size = UDim2.new(1, 0, 0, 20)
-ItemsLabel.Position = UDim2.new(0, 0, 0, 0)
-ItemsLabel.BackgroundTransparency = 1
-ItemsLabel.Text = "Select Item:"
-ItemsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-ItemsLabel.TextSize = 14
-ItemsLabel.Font = Enum.Font.Gotham
-ItemsLabel.TextXAlignment = Enum.TextXAlignment.Left
-ItemsLabel.Parent = ItemsFrame
-
-local ItemsScroll = Instance.new("ScrollingFrame")
-ItemsScroll.Name = "ItemsScroll"
-ItemsScroll.Size = UDim2.new(1, 0, 0, 150)
-ItemsScroll.Position = UDim2.new(0, 0, 0, 25)
-ItemsScroll.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-ItemsScroll.BackgroundTransparency = 0.5
-ItemsScroll.BorderSizePixel = 0
-ItemsScroll.ScrollBarThickness = 4
-ItemsScroll.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 90)
-ItemsScroll.BottomImage = "rbxassetid://"
-ItemsScroll.MidImage = "rbxassetid://"
-ItemsScroll.TopImage = "rbxassetid://"
-ItemsScroll.Parent = ItemsFrame
-
-local ItemsCorner = Instance.new("UICorner")
-ItemsCorner.CornerRadius = UDim.new(0, 8)
-ItemsCorner.Parent = ItemsScroll
-
-local ItemsLayout = Instance.new("UIListLayout")
-ItemsLayout.Name = "ItemsLayout"
-ItemsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ItemsLayout.Padding = UDim.new(0, 4)
-ItemsLayout.Parent = ItemsScroll
-
--- Spawn Controls
-local SpawnFrame = Instance.new("Frame")
-SpawnFrame.Name = "SpawnFrame"
-SpawnFrame.Size = UDim2.new(1, 0, 0, 150)
-SpawnFrame.BackgroundTransparency = 1
-SpawnFrame.Parent = ContentContainer
-
-local SpawnOnceButton = Instance.new("TextButton")
-SpawnOnceButton.Name = "SpawnOnceButton"
-SpawnOnceButton.Size = UDim2.new(1, 0, 0, 35)
-SpawnOnceButton.Position = UDim2.new(0, 0, 0, 0)
-SpawnOnceButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-SpawnOnceButton.Text = "Spawn Once"
-SpawnOnceButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-SpawnOnceButton.TextSize = 14
-SpawnOnceButton.Font = Enum.Font.GothamSemibold
-SpawnOnceButton.BorderSizePixel = 0
-SpawnOnceButton.Parent = SpawnFrame
-
-local SpawnOnceCorner = Instance.new("UICorner")
-SpawnOnceCorner.CornerRadius = UDim.new(0, 8)
-SpawnOnceCorner.Parent = SpawnOnceButton
-
-local LoopContainer = Instance.new("Frame")
-LoopContainer.Name = "LoopContainer"
-LoopContainer.Size = UDim2.new(1, 0, 0, 35)
-LoopContainer.Position = UDim2.new(0, 0, 0, 42)
-LoopContainer.BackgroundTransparency = 1
-LoopContainer.Parent = SpawnFrame
-
-local LoopButton = Instance.new("TextButton")
-LoopButton.Name = "LoopButton"
-LoopButton.Size = UDim2.new(0.65, -5, 1, 0)
-LoopButton.Position = UDim2.new(0, 0, 0, 0)
-LoopButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-LoopButton.Text = "Loop Spawn"
-LoopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-LoopButton.TextSize = 14
-LoopButton.Font = Enum.Font.GothamSemibold
-LoopButton.BorderSizePixel = 0
-LoopButton.Parent = LoopContainer
-
-local LoopCorner = Instance.new("UICorner")
-LoopCorner.CornerRadius = UDim.new(0, 8)
-LoopCorner.Parent = LoopButton
-
-local GlitchyButton = Instance.new("TextButton")
-GlitchyButton.Name = "GlitchyButton"
-GlitchyButton.Size = UDim2.new(0.35, -5, 1, 0)
-GlitchyButton.Position = UDim2.new(0.67, 0, 0, 0)
-GlitchyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-GlitchyButton.Text = "Glitchy"
-GlitchyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-GlitchyButton.TextSize = 12
-GlitchyButton.Font = Enum.Font.GothamSemibold
-GlitchyButton.BorderSizePixel = 0
-GlitchyButton.Parent = LoopContainer
-
-local GlitchyCorner = Instance.new("UICorner")
-GlitchyCorner.CornerRadius = UDim.new(0, 8)
-GlitchyCorner.Parent = GlitchyButton
-
-local LoopToggle = Instance.new("TextLabel")
-LoopToggle.Name = "LoopToggle"
-LoopToggle.Size = UDim2.new(0, 20, 1, -10)
-LoopToggle.Position = UDim2.new(1, -25, 0, 5)
-LoopToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-LoopToggle.Text = ""
-LoopToggle.BorderSizePixel = 0
-LoopToggle.Parent = LoopContainer
-
-local LoopToggleCorner = Instance.new("UICorner")
-LoopToggleCorner.CornerRadius = UDim.new(1, 0)
-LoopToggleCorner.Parent = LoopToggle
-
-local ToggleIndicator = Instance.new("Frame")
-ToggleIndicator.Name = "ToggleIndicator"
-ToggleIndicator.Size = UDim2.new(0, 14, 0, 14)
-ToggleIndicator.Position = UDim2.new(0, 3, 0, 3)
-ToggleIndicator.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-ToggleIndicator.BorderSizePixel = 0
-ToggleIndicator.Parent = LoopToggle
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(1, 0)
-ToggleCorner.Parent = ToggleIndicator
-
--- Functions
-local function updateContentSize()
-    local totalHeight = 0
-    for _, child in pairs(ContentContainer:GetChildren()) do
-        if child:IsA("Frame") and child.Visible then
-            totalHeight = totalHeight + child.Size.Y.Offset + ContentLayout.Padding.Offset
-        end
-    end
-    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-end
-
-local function loadItems()
-    -- Clear existing items
-    for _, child in pairs(ItemsScroll:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    
-    -- Search for Items folder
-    local itemsFolder = nil
-    for _, child in pairs(ReplicatedStorage:GetChildren()) do
-        if child.Name:lower():find("item") or child.Name:lower():find("ite") then
-            itemsFolder = child
-            break
-        end
-    end
-    
-    if not itemsFolder then
-        local noItems = Instance.new("TextLabel")
-        noItems.Size = UDim2.new(1, 0, 0, 30)
-        noItems.BackgroundTransparency = 1
-        noItems.Text = "No items folder found!"
-        noItems.TextColor3 = Color3.fromRGB(255, 100, 100)
-        noItems.TextSize = 14
-        noItems.Font = Enum.Font.Gotham
-        noItems.Parent = ItemsScroll
-        return
-    end
-    
-    -- Function to recursively add items
-    local function addItems(parent, depth)
-        depth = depth or 0
-        for _, child in pairs(parent:GetChildren()) do
-            if child:IsA("Folder") then
-                -- Create folder button
-                local folderBtn = Instance.new("TextButton")
-                folderBtn.Size = UDim2.new(1, -10, 0, 30)
-                folderBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-                folderBtn.Text = string.rep("  ", depth) .. "📁 " .. child.Name
-                folderBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
-                folderBtn.TextSize = 13
-                folderBtn.Font = Enum.Font.Gotham
-                folderBtn.BorderSizePixel = 0
-                folderBtn.Parent = ItemsScroll
-                
-                local folderCorner = Instance.new("UICorner")
-                folderCorner.CornerRadius = UDim.new(0, 6)
-                folderCorner.Parent = folderBtn
-                
-                folderBtn.MouseButton1Click:Connect(function()
-                    currentFolder = child
-                    loadItems() -- Reload to show contents
-                end)
-                
-                -- Add children recursively
-                addItems(child, depth + 1)
-            else
-                -- Create item button
-                local itemBtn = Instance.new("TextButton")
-                itemBtn.Size = UDim2.new(1, -10, 0, 30)
-                itemBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-                itemBtn.Text = string.rep("  ", depth) .. "📦 " .. child.Name
-                itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                itemBtn.TextSize = 13
-                itemBtn.Font = Enum.Font.Gotham
-                itemBtn.BorderSizePixel = 0
-                itemBtn.Parent = ItemsScroll
-                
-                local itemCorner = Instance.new("UICorner")
-                itemCorner.CornerRadius = UDim.new(0, 6)
-                itemCorner.Parent = itemBtn
-                
-                itemBtn.MouseButton1Click:Connect(function()
-                    currentItem = child.Name
-                    -- Highlight selected
-                    for _, btn in pairs(ItemsScroll:GetChildren()) do
-                        if btn:IsA("TextButton") then
-                            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-                        end
-                    end
-                    itemBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-                end)
+-- Dragging Logic
+local Dragging, DragInput, DragStart, StartPos
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = true
+        DragStart = input.Position
+        StartPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                Dragging = false
             end
-        end
-    end
-    
-    addItems(itemsFolder)
-    
-    -- Update scroll size
-    local count = #ItemsScroll:GetChildren()
-    ItemsScroll.CanvasSize = UDim2.new(0, 0, 0, count * 34)
-end
-
-local function spawnItem(itemName, mode)
-    if not itemName then
-        print("No item selected!")
-        return
-    end
-    
-    local Event = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ClaimHatchedItem")
-    
-    if mode == "normal" then
-        Event:FireServer(itemName, "Mythical")
-    else -- advanced
-        Event:FireServer(itemName, "Common", "Normal")
-    end
-end
-
-local function getRandomName()
-    local names = {"Glitch", "Error", "Corrupt", "Void", "Null", "Phantom", "Wraith", "Specter"}
-    return names[math.random(1, #names)] .. math.random(100, 999)
-end
-
-local function startLoop(glitchy)
-    if isLooping then return end
-    if not currentItem then
-        print("No item selected!")
-        return
-    end
-    
-    isLooping = true
-    isGlitchy = glitchy or false
-    LoopButton.Text = "Stop Loop"
-    LoopButton.BackgroundColor3 = Color3.fromRGB(70, 40, 40)
-    ToggleIndicator.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    
-    loopConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not isLooping then return end
-        
-        local itemToSpawn = currentItem
-        if isGlitchy then
-            itemToSpawn = getRandomName()
-        end
-        
-        spawnItem(itemToSpawn, currentMode)
-    end)
-end
-
-local function stopLoop()
-    isLooping = false
-    if loopConnection then
-        loopConnection:Disconnect()
-        loopConnection = nil
-    end
-    LoopButton.Text = "Loop Spawn"
-    LoopButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-    ToggleIndicator.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-end
-
--- Button Connections
-NormalButton.MouseButton1Click:Connect(function()
-    currentMode = "normal"
-    NormalButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    AdvancedButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-end)
-
-AdvancedButton.MouseButton1Click:Connect(function()
-    currentMode = "advanced"
-    AdvancedButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    NormalButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-end)
-
-SpawnOnceButton.MouseButton1Click:Connect(function()
-    if currentItem then
-        spawnItem(currentItem, currentMode)
-    else
-        print("Please select an item first!")
+        end)
     end
 end)
 
-LoopButton.MouseButton1Click:Connect(function()
-    if isLooping then
-        stopLoop()
-    else
-        startLoop(false)
-    end
-end)
-
-GlitchyButton.MouseButton1Click:Connect(function()
-    if isLooping then
-        stopLoop()
-    else
-        startLoop(true)
-    end
-end)
-
--- Toggle for loop (click on toggle indicator)
-LoopToggle.MouseButton1Click:Connect(function()
-    if isLooping then
-        stopLoop()
-    else
-        startLoop(isGlitchy)
-    end
-end)
-
--- Minimize
-MinimizeButton.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    if isMinimized then
-        MainFrame.Size = UDim2.new(0, 350, 0, 40)
-        ContentContainer.Visible = false
-        MinimizeButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
-    else
-        MainFrame.Size = UDim2.new(0, 350, 0, 500)
-        ContentContainer.Visible = true
-        MinimizeButton.ImageColor3 = Color3.fromRGB(200, 200, 200)
-    end
-end)
-
--- Close
-CloseButton.MouseButton1Click:Connect(function()
-    if isLooping then
-        stopLoop()
-    end
-    ScreenGui:Destroy()
-end)
-
--- Dragging
-Header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
+TopBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        DragInput = input
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if isDragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
-        local delta = input.Position - dragStart
-        local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        MainFrame.Position = newPos
+    if input == DragInput and Dragging then
+        local Delta = input.Position - DragStart
+        MainFrame.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = false
+-- Minimize Functionality
+local IsMinimized = false
+MinimizeBtn.MouseButton1Click:Connect(function()
+    IsMinimized = not IsMinimized
+    TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {
+        Size = IsMinimized and UDim2.new(0, 360, 0, 40) or UDim2.new(0, 360, 0, 420)
+    }):Play()
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+---------------------------------------------------------
+-- SCREEN 1: Mode Selection Menu
+---------------------------------------------------------
+local ModeSelectFrame = Instance.new("Frame")
+ModeSelectFrame.Size = UDim2.new(1, 0, 1, -40)
+ModeSelectFrame.Position = UDim2.new(0, 0, 0, 40)
+ModeSelectFrame.BackgroundTransparency = 1
+ModeSelectFrame.Parent = MainFrame
+
+local ModePrompt = Instance.new("TextLabel")
+ModePrompt.Size = UDim2.new(1, -20, 0, 40)
+ModePrompt.Position = UDim2.new(0, 10, 0, 40)
+ModePrompt.BackgroundTransparency = 1
+ModePrompt.Text = "Select Hub Execution Mode"
+ModePrompt.TextColor3 = Theme.Text
+ModePrompt.TextSize = 18
+ModePrompt.Font = Enum.Font.GothamBold
+ModePrompt.Parent = ModeSelectFrame
+
+local NormalModeBtn = Instance.new("TextButton")
+NormalModeBtn.Size = UDim2.new(0.8, 0, 0, 50)
+NormalModeBtn.Position = UDim2.new(0.1, 0, 0, 110)
+NormalModeBtn.BackgroundColor3 = Theme.Accent
+NormalModeBtn.Text = "Normal Mode\n(Mythical Claim)"
+NormalModeBtn.TextColor3 = Theme.Text
+NormalModeBtn.Font = Enum.Font.GothamBold
+NormalModeBtn.TextSize = 14
+NormalModeBtn.Parent = ModeSelectFrame
+Instance.new("UICorner", NormalModeBtn).CornerRadius = UDim.new(0, 8)
+
+local AdvancedModeBtn = Instance.new("TextButton")
+AdvancedModeBtn.Size = UDim2.new(0.8, 0, 0, 50)
+AdvancedModeBtn.Position = UDim2.new(0.1, 0, 0, 180)
+AdvancedModeBtn.BackgroundColor3 = Theme.Secondary
+AdvancedModeBtn.Text = "Advanced Mode\n(Common / Normal Claim)"
+AdvancedModeBtn.TextColor3 = Theme.Text
+AdvancedModeBtn.Font = Enum.Font.GothamBold
+AdvancedModeBtn.TextSize = 14
+AdvancedModeBtn.Parent = ModeSelectFrame
+Instance.new("UICorner", AdvancedModeBtn).CornerRadius = UDim.new(0, 8)
+
+---------------------------------------------------------
+-- SCREEN 2: Explorer Screen
+---------------------------------------------------------
+local ExplorerFrame = Instance.new("Frame")
+ExplorerFrame.Size = UDim2.new(1, 0, 1, -40)
+ExplorerFrame.Position = UDim2.new(0, 0, 0, 40)
+ExplorerFrame.BackgroundTransparency = 1
+ExplorerFrame.Visible = false
+ExplorerFrame.Parent = MainFrame
+
+local ItemScroll = Instance.new("ScrollingFrame")
+ItemScroll.Size = UDim2.new(1, -20, 1, -20)
+ItemScroll.Position = UDim2.new(0, 10, 0, 10)
+ItemScroll.BackgroundTransparency = 1
+ItemScroll.BorderSizePixel = 0
+ItemScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+ItemScroll.ScrollBarThickness = 6
+ItemScroll.Parent = ExplorerFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ItemScroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 6)
+
+UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    ItemScroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+end)
+
+---------------------------------------------------------
+-- SCREEN 3: Function Action Menu
+---------------------------------------------------------
+local ActionFrame = Instance.new("Frame")
+ActionFrame.Size = UDim2.new(1, 0, 1, -40)
+ActionFrame.Position = UDim2.new(0, 0, 0, 40)
+ActionFrame.BackgroundTransparency = 1
+ActionFrame.Visible = false
+ActionFrame.Parent = MainFrame
+
+local BackBtn = Instance.new("TextButton")
+BackBtn.Size = UDim2.new(0, 70, 0, 30)
+BackBtn.Position = UDim2.new(0, 10, 0, 10)
+BackBtn.BackgroundColor3 = Theme.Secondary
+BackBtn.Text = "< Back"
+BackBtn.TextColor3 = Theme.Text
+BackBtn.Font = Enum.Font.Gotham
+BackBtn.TextSize = 12
+BackBtn.Parent = ActionFrame
+Instance.new("UICorner", BackBtn).CornerRadius = UDim.new(0, 6)
+
+local TargetLabel = Instance.new("TextLabel")
+TargetLabel.Size = UDim2.new(1, -20, 0, 30)
+TargetLabel.Position = UDim2.new(0, 10, 0, 50)
+TargetLabel.BackgroundTransparency = 1
+TargetLabel.Text = "Selected: None"
+TargetLabel.TextColor3 = Theme.Accent
+TargetLabel.TextSize = 14
+TargetLabel.Font = Enum.Font.GothamBold
+TargetLabel.Parent = ActionFrame
+
+-- Action Buttons
+local SpawnOnceBtn = Instance.new("TextButton")
+SpawnOnceBtn.Size = UDim2.new(0.9, 0, 0, 40)
+SpawnOnceBtn.Position = UDim2.new(0.05, 0, 0, 95)
+SpawnOnceBtn.BackgroundColor3 = Theme.Secondary
+SpawnOnceBtn.Text = "Spawn Once"
+SpawnOnceBtn.TextColor3 = Theme.Text
+SpawnOnceBtn.Font = Enum.Font.Gotham
+SpawnOnceBtn.TextSize = 14
+SpawnOnceBtn.Parent = ActionFrame
+Instance.new("UICorner", SpawnOnceBtn).CornerRadius = UDim.new(0, 6)
+
+local LoopToggleBtn = Instance.new("TextButton")
+LoopToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
+LoopToggleBtn.Position = UDim2.new(0.05, 0, 0, 145)
+LoopToggleBtn.BackgroundColor3 = Theme.Secondary
+LoopToggleBtn.Text = "Loop Spawn: OFF"
+LoopToggleBtn.TextColor3 = Theme.Text
+LoopToggleBtn.Font = Enum.Font.Gotham
+LoopToggleBtn.TextSize = 14
+LoopToggleBtn.Parent = ActionFrame
+Instance.new("UICorner", LoopToggleBtn).CornerRadius = UDim.new(0, 6)
+
+local GlitchOnceBtn = Instance.new("TextButton")
+GlitchOnceBtn.Size = UDim2.new(0.9, 0, 0, 40)
+GlitchOnceBtn.Position = UDim2.new(0.05, 0, 0, 195)
+GlitchOnceBtn.BackgroundColor3 = Theme.Secondary
+GlitchOnceBtn.Text = "Spawn 1x (Glitch Name)"
+GlitchOnceBtn.TextColor3 = Theme.Text
+GlitchOnceBtn.Font = Enum.Font.Gotham
+GlitchOnceBtn.TextSize = 14
+GlitchOnceBtn.Parent = ActionFrame
+Instance.new("UICorner", GlitchOnceBtn).CornerRadius = UDim.new(0, 6)
+
+local GlitchLoopBtn = Instance.new("TextButton")
+GlitchLoopBtn.Size = UDim2.new(0.9, 0, 0, 40)
+GlitchLoopBtn.Position = UDim2.new(0.05, 0, 0, 245)
+GlitchLoopBtn.BackgroundColor3 = Theme.Secondary
+GlitchLoopBtn.Text = "Glitch Loop Spawn: OFF"
+GlitchLoopBtn.TextColor3 = Theme.Text
+GlitchLoopBtn.Font = Enum.Font.Gotham
+GlitchLoopBtn.TextSize = 14
+GlitchLoopBtn.Parent = ActionFrame
+Instance.new("UICorner", GlitchLoopBtn).CornerRadius = UDim.new(0, 6)
+
+---------------------------------------------------------
+-- Helper Functions & Logic
+---------------------------------------------------------
+
+-- Helper to produce randomized glitch text strings
+local function GenerateGlitchName(length)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+"
+    local result = ""
+    for i = 1, length or math.random(6, 14) do
+        local randIndex = math.random(1, #chars)
+        result = result .. string.sub(chars, randIndex, randIndex)
+    end
+    return result
+end
+
+-- Fire Remote Event Logic
+local function ExecuteSpawn(itemName)
+    local Event = ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("ClaimHatchedItem")
+    if not Event then
+        warn("ClaimHatchedItem RemoteEvent missing in ReplicatedStorage.Events!")
+        return
+    end
+
+    if CurrentMode == "Normal" then
+        Event:FireServer(itemName, "Mythical")
+    elseif CurrentMode == "Advanced" then
+        Event:FireServer(itemName, "Common", "Normal")
+    end
+end
+
+-- Open Action Panel for Selected Object
+local function OpenActionPanel(object)
+    SelectedItem = object
+    TargetLabel.Text = "Target: " .. object.Name
+    ExplorerFrame.Visible = false
+    ActionFrame.Visible = true
+end
+
+-- Find Items Folder in ReplicatedStorage
+local function LocateItemsFolder()
+    for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+        if child.Name:lower():find("item") or child.Name:lower():find("ite") then
+            return child
+        end
+    end
+    return nil
+end
+
+-- Populate Explorer UI
+local function PopulateFolder(parentInstance)
+    for _, child in ipairs(ItemScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    for _, child in ipairs(parentInstance:GetChildren()) do
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(1, 0, 0, 36)
+        Btn.BackgroundColor3 = Theme.Secondary
+        Btn.TextColor3 = Theme.Text
+        Btn.Font = Enum.Font.Gotham
+        Btn.TextSize = 13
+        Btn.TextXAlignment = Enum.TextXAlignment.Left
+        Btn.Parent = ItemScroll
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+
+        -- Add padding visually
+        local Padding = Instance.new("UIPadding", Btn)
+        Padding.PaddingLeft = UDim.new(0, 12)
+
+        if child:IsA("Folder") or child:IsA("Model") and #child:GetChildren() > 0 then
+            Btn.Text = "📁 " .. child.Name
+            Btn.MouseButton1Click:Connect(function()
+                PopulateFolder(child)
+            end)
+        else
+            Btn.Text = "📄 " .. child.Name
+            Btn.MouseButton1Click:Connect(function()
+                OpenActionPanel(child)
+            end)
+        end
+    end
+end
+
+-- Launch Hub Function
+local function LaunchHub(mode)
+    CurrentMode = mode
+    TitleLabel.Text = "Spawner Hub [" .. mode .. " Mode]"
+    ModeSelectFrame.Visible = false
+    ExplorerFrame.Visible = true
+
+    local ItemsFolder = LocateItemsFolder()
+    if ItemsFolder then
+        PopulateFolder(ItemsFolder)
+    else
+        local ErrorMsg = Instance.new("TextLabel")
+        ErrorMsg.Size = UDim2.new(1, 0, 0, 40)
+        ErrorMsg.BackgroundTransparency = 1
+        ErrorMsg.Text = "No 'Items' folder located in ReplicatedStorage."
+        ErrorMsg.TextColor3 = Theme.Close
+        ErrorMsg.Font = Enum.Font.Gotham
+        ErrorMsg.Parent = ItemScroll
+    end
+end
+
+---------------------------------------------------------
+-- Event Connections
+---------------------------------------------------------
+
+NormalModeBtn.MouseButton1Click:Connect(function() LaunchHub("Normal") end)
+AdvancedModeBtn.MouseButton1Click:Connect(function() LaunchHub("Advanced") end)
+
+BackBtn.MouseButton1Click:Connect(function()
+    ActionFrame.Visible = false
+    ExplorerFrame.Visible = true
+    IsLoopSpawning = false
+    IsGlitchLooping = false
+    LoopToggleBtn.Text = "Loop Spawn: OFF"
+    LoopToggleBtn.BackgroundColor3 = Theme.Secondary
+    GlitchLoopBtn.Text = "Glitch Loop Spawn: OFF"
+    GlitchLoopBtn.BackgroundColor3 = Theme.Secondary
+end)
+
+-- Action Execution Listeners
+SpawnOnceBtn.MouseButton1Click:Connect(function()
+    if SelectedItem then
+        ExecuteSpawn(SelectedItem.Name)
     end
 end)
 
--- Initialize
-loadItems()
-NormalButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+LoopToggleBtn.MouseButton1Click:Connect(function()
+    IsLoopSpawning = not IsLoopSpawning
+    LoopToggleBtn.Text = "Loop Spawn: " .. (IsLoopSpawning and "ON" or "OFF")
+    LoopToggleBtn.BackgroundColor3 = IsLoopSpawning and Theme.Accent or Theme.Secondary
 
--- Update sizes
-ItemsFrame.Size = UDim2.new(1, 0, 0, 200)
-SpawnFrame.Size = UDim2.new(1, 0, 0, 130)
-updateContentSize()
+    task.spawn(function()
+        while IsLoopSpawning and SelectedItem do
+            ExecuteSpawn(SelectedItem.Name)
+            task.wait(0.1)
+        end
+    end)
+end)
 
--- Animation for nicer appearance
-MainFrame.BackgroundTransparency = 0.05
-TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-    BackgroundTransparency = 0.05
-}):Play()
+GlitchOnceBtn.MouseButton1Click:Connect(function()
+    ExecuteSpawn(GenerateGlitchName())
+end)
+
+GlitchLoopBtn.MouseButton1Click:Connect(function()
+    IsGlitchLooping = not IsGlitchLooping
+    GlitchLoopBtn.Text = "Glitch Loop Spawn: " .. (IsGlitchLooping and "ON" or "OFF")
+    GlitchLoopBtn.BackgroundColor3 = IsGlitchLooping and Theme.Accent or Theme.Secondary
+
+    task.spawn(function()
+        while IsGlitchLooping do
+            ExecuteSpawn(GenerateGlitchName())
+            task.wait(0.1)
+        end
+    end)
+end)
