@@ -1,11 +1,11 @@
---[[ R6 Reanim Creator - Smooth + Live Edit + +/- buttons ]]
+--[[ R6 Reanim Creator - Smooth Modes + Live Edit ]]
 local P,UIS,RS = game:GetService("Players"),game:GetService("UserInputService"),game:GetService("RunService")
 local plr = P.LocalPlayer
 local gui = Instance.new("ScreenGui",plr:WaitForChild("PlayerGui"))
 gui.Name,gui.ResetOnSpawn,gui.IgnoreGuiInset,gui.ZIndexBehavior = "R6ReanimCreator",false,true,Enum.ZIndexBehavior.Sibling
 
 local main = Instance.new("Frame",gui)
-main.Size,main.Position,main.BackgroundColor3,main.BorderSizePixel,main.ClipsDescendants = UDim2.new(0,280,0,420),UDim2.new(.5,-140,.5,-210),Color3.fromRGB(22,22,30),0,true
+main.Size,main.Position,main.BackgroundColor3,main.BorderSizePixel,main.ClipsDescendants = UDim2.new(0,290,0,460),UDim2.new(.5,-145,.5,-230),Color3.fromRGB(22,22,30),0,true
 Instance.new("UICorner",main).CornerRadius = UDim.new(0,12)
 local s = Instance.new("UIStroke",main) s.Color,s.Thickness = Color3.fromRGB(80,70,160),1.4
 
@@ -30,7 +30,7 @@ local closeBtn = btn(titleBar,UDim2.new(0,28,0,28),UDim2.new(1,-32,.5,-14),Color
 
 local content = Instance.new("ScrollingFrame",main)
 content.Size,content.Position,content.BackgroundTransparency,content.BorderSizePixel,content.ScrollBarThickness,content.ScrollBarImageColor3,content.CanvasSize =
-	UDim2.new(1,0,1,-36),UDim2.new(0,0,0,36),1,0,3,Color3.fromRGB(100,90,180),UDim2.new(0,0,0,620)
+	UDim2.new(1,0,1,-36),UDim2.new(0,0,0,36),1,0,3,Color3.fromRGB(100,90,180),UDim2.new(0,0,0,680)
 local lay = Instance.new("UIListLayout",content) lay.Padding,lay.SortOrder = UDim.new(0,7),Enum.SortOrder.LayoutOrder
 local pad = Instance.new("UIPadding",content) pad.PaddingTop,pad.PaddingLeft,pad.PaddingRight,pad.PaddingBottom = UDim.new(0,8),UDim.new(0,8),UDim.new(0,8),UDim.new(0,8)
 
@@ -46,9 +46,23 @@ end
 
 -- Data
 local curAnim,curPart,curKF,previewing,prevConn,origC0 = "Idle","Head",1,false,nil,{}
+local smoothMode = "Ease" -- Linear | Ease | Smooth | Super
 local anims = {Idle={speed=1,keyframes={{}}},Walk={speed=1.4,keyframes={{}}}}
 local PART_MOTOR = {Head="Neck",Torso="RootJoint",["Left Arm"]="Left Shoulder",["Right Arm"]="Right Shoulder",["Left Leg"]="Left Hip",["Right Leg"]="Right Hip"}
 local PARTS = {"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
+
+-- Smooth easing functions
+local function ease(alpha, mode)
+	if mode == "Linear" then return alpha end
+	if mode == "Ease" then -- smoothstep
+		return alpha*alpha*(3-2*alpha)
+	end
+	if mode == "Smooth" then -- smootherstep
+		return alpha*alpha*alpha*(alpha*(alpha*6-15)+10)
+	end
+	-- Super = cosine
+	return (1-math.cos(alpha*math.pi))/2
+end
 
 -- Anim type
 local aSec = section("ANIMATION",1)
@@ -56,8 +70,24 @@ local aFr = Instance.new("Frame",aSec) aFr.Size,aFr.Position,aFr.BackgroundTrans
 local idleBtn = btn(aFr,UDim2.new(.48,0,1,0),UDim2.new(0,0,0,0),Color3.fromRGB(90,70,200),"Idle",12)
 local walkBtn = btn(aFr,UDim2.new(.48,0,1,0),UDim2.new(.52,0,0,0),Color3.fromRGB(45,42,70),"Walk",12)
 
+-- Smooth Mode
+local smSec = section("SMOOTH MODE",2)
+local smFr = Instance.new("Frame",smSec) smFr.Size,smFr.Position,smFr.BackgroundTransparency = UDim2.new(1,-16,0,28),UDim2.new(0,8,0,24),1
+local modes = {"Linear","Ease","Smooth","Super"}
+local modeBtns = {}
+for i,m in ipairs(modes) do
+	local b = btn(smFr,UDim2.new(0.23,0,1,0),UDim2.new((i-1)*0.255,0,0,0), m==smoothMode and Color3.fromRGB(90,70,200) or Color3.fromRGB(45,42,70),m,10)
+	modeBtns[m] = b
+	b.MouseButton1Click:Connect(function()
+		smoothMode = m
+		for name,btn in pairs(modeBtns) do
+			btn.BackgroundColor3 = name==m and Color3.fromRGB(90,70,200) or Color3.fromRGB(45,42,70)
+		end
+	end)
+end
+
 -- Parts
-local pSec = section("BODY PART",2)
+local pSec = section("BODY PART",3)
 local pFr = Instance.new("Frame",pSec) pFr.Size,pFr.Position,pFr.BackgroundTransparency = UDim2.new(1,-16,0,58),UDim2.new(0,8,0,24),1
 local partBtns = {}
 for i,n in ipairs(PARTS) do
@@ -66,39 +96,32 @@ for i,n in ipairs(PARTS) do
 end
 
 -- XYZ with +/- 
-local xSec = section("MOTOR6D C0",3)
+local xSec = section("MOTOR6D C0",4)
 local function makeAxis(parent,y,label)
 	local r = Instance.new("Frame",parent)
 	r.Size,r.Position,r.BackgroundTransparency = UDim2.new(1,-16,0,26),UDim2.new(0,8,0,y),1
-
 	local l = Instance.new("TextLabel",r)
 	l.Size,l.BackgroundTransparency,l.Text,l.Font,l.TextSize,l.TextColor3,l.TextXAlignment =
 		UDim2.new(0,28,1,0),1,label,Enum.Font.GothamBold,11,Color3.fromRGB(200,195,230),Enum.TextXAlignment.Left
-
 	local boxes = {}
 	for i,ax in ipairs({"X","Y","Z"}) do
 		local baseX = 30 + (i-1)*78
-
 		local minus = btn(r,UDim2.new(0,18,0,20),UDim2.new(0,baseX,0.5,-10),Color3.fromRGB(60,50,90),"-",14)
 		local tb = Instance.new("TextBox",r)
 		tb.Size,tb.Position,tb.BackgroundColor3,tb.Text,tb.Font,tb.TextSize,tb.TextColor3,tb.ClearTextOnFocus =
 			UDim2.new(0,38,0,20),UDim2.new(0,baseX+20,.5,-10),Color3.fromRGB(40,38,60),"0",Enum.Font.Gotham,12,Color3.new(1,1,1),false
 		Instance.new("UICorner",tb).CornerRadius = UDim.new(0,4)
 		local plus = btn(r,UDim2.new(0,18,0,20),UDim2.new(0,baseX+60,0.5,-10),Color3.fromRGB(60,50,90),"+",14)
-
 		local function change(delta)
 			local v = tonumber(tb.Text) or 0
 			v = math.floor((v + delta)*10 + 0.5)/10
 			tb.Text = string.format("%.1f",v)
-			saveBoxes() -- live update
+			saveBoxes()
 		end
 		minus.MouseButton1Click:Connect(function() change(-0.1) end)
 		plus.MouseButton1Click:Connect(function() change(0.1) end)
 		tb.FocusLost:Connect(function() saveBoxes() end)
-		tb:GetPropertyChangedSignal("Text"):Connect(function()
-			if previewing then saveBoxes() end -- live while preview
-		end)
-
+		tb:GetPropertyChangedSignal("Text"):Connect(function() if previewing then saveBoxes() end end)
 		boxes[ax] = tb
 	end
 	return boxes
@@ -107,7 +130,7 @@ local posB = makeAxis(xSec,22,"Pos")
 local rotB = makeAxis(xSec,52,"Rot")
 
 -- Controls
-local cSec = section("CONTROLS",4)
+local cSec = section("CONTROLS",5)
 local sLab = Instance.new("TextLabel",cSec)
 sLab.Size,sLab.Position,sLab.BackgroundTransparency,sLab.Text,sLab.Font,sLab.TextSize,sLab.TextColor3 =
 	UDim2.new(0,40,0,24),UDim2.new(0,8,0,22),1,"Speed",Enum.Font.Gotham,11,Color3.fromRGB(200,195,230)
@@ -124,13 +147,13 @@ local function sBtn(t,x) return btn(bRow,UDim2.new(0,55,1,0),UDim2.new(0,x,0,0),
 local prevKF,nextKF,addKF,delKF = sBtn("<",0),sBtn(">",60),sBtn("+",120),sBtn("Del",180)
 
 -- Actions
-local act = section("ACTIONS",5)
+local act = section("ACTIONS",6)
 local prevBtn = btn(act,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,22),Color3.fromRGB(40,120,90),"▶ Preview (OFF)",12)
 local saveBtn = btn(act,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,54),Color3.fromRGB(70,90,180),"💾 Save",12)
 local genBtn = btn(act,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,86),Color3.fromRGB(140,70,180),"⚡ Generate Script",12)
 
 -- Output
-local oSec = section("GENERATED SCRIPT",6)
+local oSec = section("GENERATED SCRIPT",7)
 local outBox = Instance.new("TextBox",oSec)
 outBox.Size,outBox.Position,outBox.BackgroundColor3,outBox.Text,outBox.Font,outBox.TextSize,outBox.TextColor3,outBox.TextXAlignment,outBox.TextYAlignment,outBox.ClearTextOnFocus,outBox.MultiLine,outBox.TextWrapped =
 	UDim2.new(1,-16,0,110),UDim2.new(0,8,0,22),Color3.fromRGB(18,17,28),"-- Click Generate",Enum.Font.Code,10,Color3.fromRGB(180,255,180),Enum.TextXAlignment.Left,Enum.TextYAlignment.Top,false,true,true
@@ -158,7 +181,7 @@ local function storeOrig(c)
 end
 local function updKF() kfLab.Text = "KF: "..curKF.."/"..#anims[curAnim].keyframes end
 
-function saveBoxes() -- made global so +/- can call it
+function saveBoxes()
 	local kf = anims[curAnim].keyframes[curKF]
 	if not kf then return end
 	kf[curPart] = {
@@ -183,7 +206,6 @@ local function setAnim(a)
 	speedBox.Text = tostring(anims[a].speed) updKF() loadBoxes()
 end
 
--- Smooth Preview
 local function stopPrev()
 	previewing = false
 	prevBtn.Text,prevBtn.BackgroundColor3 = "▶ Preview (OFF)",Color3.fromRGB(40,120,90)
@@ -214,17 +236,15 @@ local function startPrev()
 		local raw = t % count
 		local idx = math.floor(raw) + 1
 		local nextIdx = idx % count + 1
-		local alpha = raw - math.floor(raw) -- 0 → 1 smooth
+		local alpha = ease(raw - math.floor(raw), smoothMode)
 
 		for _,n in ipairs(PARTS) do
 			local m = getMotor(c,n)
 			if m and origC0[n] then
 				local dA = kfs[idx][n] or {pos=Vector3.zero,rot=Vector3.zero}
 				local dB = kfs[nextIdx][n] or {pos=Vector3.zero,rot=Vector3.zero}
-
 				local cfA = CFrame.new(dA.pos) * CFrame.Angles(math.rad(dA.rot.X),math.rad(dA.rot.Y),math.rad(dA.rot.Z))
 				local cfB = CFrame.new(dB.pos) * CFrame.Angles(math.rad(dB.rot.X),math.rad(dB.rot.Y),math.rad(dB.rot.Z))
-
 				m.C0 = origC0[n] * cfA:Lerp(cfB, alpha)
 			end
 		end
@@ -246,11 +266,21 @@ local function genScript()
 	for _,k in ipairs(anims.Idle.keyframes) do table.insert(iK,ser(k)) end
 	for _,k in ipairs(anims.Walk.keyframes) do table.insert(wK,ser(k)) end
 
-	outBox.Text = [[-- R6 Smooth Reanim (Motor6D) | No Animate
+	local easeCode = [[
+local function ease(a,mode)
+	if mode=="Linear" then return a end
+	if mode=="Ease" then return a*a*(3-2*a) end
+	if mode=="Smooth" then return a*a*a*(a*(a*6-15)+10) end
+	return (1-math.cos(a*math.pi))/2
+end]]
+
+	outBox.Text = [[-- R6 Smooth Reanim (Motor6D) | Mode: ]]..smoothMode..[[ 
 local P,RS=game:GetService("Players"),game:GetService("RunService")
 local plr=P.LocalPlayer
 local PART_MOTOR={Head="Neck",Torso="RootJoint",["Left Arm"]="Left Shoulder",["Right Arm"]="Right Shoulder",["Left Leg"]="Left Hip",["Right Leg"]="Right Hip"}
+local smoothMode="]]..smoothMode..[["
 local anims={Idle={speed=]]..anims.Idle.speed..[[,keyframes={]]..table.concat(iK,",")..[[}},Walk={speed=]]..anims.Walk.speed..[[,keyframes={]]..table.concat(wK,",")..[[}}}
+]]..easeCode..[[
 local function getMotor(c,n) local m=PART_MOTOR[n] if m=="RootJoint" then local h=c:FindFirstChild("HumanoidRootPart") return h and h:FindFirstChild("RootJoint") end local t=c:FindFirstChild("Torso") return t and t:FindFirstChild(m) end
 local function setup(c)
 	local h=c:WaitForChild("Humanoid",5) if not h then return end
@@ -268,7 +298,7 @@ local function setup(c)
 		local raw = t % count
 		local idx = math.floor(raw)+1
 		local nextIdx = idx % count + 1
-		local alpha = raw - math.floor(raw)
+		local alpha = ease(raw - math.floor(raw), smoothMode)
 		for n,base in pairs(orig) do
 			local m=getMotor(c,n)
 			if m then
@@ -345,7 +375,7 @@ local mini=false
 minBtn.MouseButton1Click:Connect(function()
 	mini = not mini
 	content.Visible = not mini
-	main.Size = mini and UDim2.new(0,280,0,36) or UDim2.new(0,280,0,420)
+	main.Size = mini and UDim2.new(0,290,0,36) or UDim2.new(0,290,0,460)
 	minBtn.Text = mini and "+" or "–"
 end)
 closeBtn.MouseButton1Click:Connect(function() stopPrev() gui:Destroy() end)
