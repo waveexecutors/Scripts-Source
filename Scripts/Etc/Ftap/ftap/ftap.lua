@@ -1,8 +1,7 @@
 --[[
     FTAP OP Exploits - Rayfield Gen2 UI (FIXED + ENHANCED)
     For Delta Mobile Executor | English
-    Fixes: Super Strength via constraint boosting, FLING ALL fixed with network ownership
-    New: Third Person Camera, Rainbow Chinese Hat, Spin Player
+    Fixes: Notify errors, Broken Hat Mesh, Super Strength, FLING ALL
 ]]
 
 -- ============================================================
@@ -10,12 +9,35 @@
 -- ============================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
 -- LOAD RAYFIELD GEN2
 -- ============================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/gen2'))()
+
+-- ============================================================
+-- SAFE NOTIFICATION FUNCTION (Fixes "attempt to call missing method 'Notify'")
+-- ============================================================
+local function SafeNotify(title, content, duration)
+    -- Try Rayfield notify first
+    pcall(function()
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = duration or 3
+        })
+    end)
+    -- Fallback to Roblox default notification
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = content,
+            Duration = duration or 3
+        })
+    end)
+end
 
 -- ============================================================
 -- LOAD FTAP MODULE
@@ -82,6 +104,11 @@ local function boostConstraint(inst)
         inst.Force = inst.Force * 10
     elseif inst:IsA("BodyThrust") then
         inst.Force = inst.Force * 10
+    elseif inst:IsA("BodyPosition") then
+        inst.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        inst.P = 1250 * 5
+    elseif inst:IsA("BodyGyro") then
+        inst.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     elseif inst:IsA("RopeConstraint") then
         inst.Visible = false
     end
@@ -107,11 +134,7 @@ MainTab:CreateToggle({
     callback = function(value)
         ToggleSuperStrength(value)
         pcall(function() ApiFTAP.SuperStrength(value) end)
-        Rayfield:Notify({
-            title = "Super Strength",
-            content = value and "Enabled — Grab power is now massive!" or "Disabled",
-            duration = 3
-        })
+        SafeNotify("Super Strength", value and "Enabled — Grab power is now massive!" or "Disabled", 3)
     end
 })
 
@@ -217,11 +240,7 @@ VisualTab:CreateToggle({
                 if hum then cam.CameraSubject = hum end
             end
 
-            Rayfield:Notify({
-                title = "Third Person",
-                content = "Enabled — zoom out to see yourself!",
-                duration = 4
-            })
+            SafeNotify("Third Person", "Enabled — zoom out to see yourself!", 4)
         else
             LocalPlayer.CameraMaxZoomDistance = cameraBackup.max or 128
             LocalPlayer.CameraMinZoomDistance = cameraBackup.min or 0.5
@@ -254,9 +273,10 @@ local function createChineseHat(character)
     hat.CFrame = head.CFrame * CFrame.new(0, 0.9, 0)
     hat.Parent = character
 
+    -- FIXED: Replaced broken mesh ID with a safe Roblox cone mesh
     local mesh = Instance.new("SpecialMesh", hat)
     mesh.MeshType = Enum.MeshType.FileMesh
-    mesh.MeshId = "rbxassetid://5004353582"
+    mesh.MeshId = "rbxassetid://1088394331" -- Safe Roblox cone mesh
     mesh.Scale = Vector3.new(1, 0.6, 1)
 
     local hl = Instance.new("Highlight", hat)
@@ -307,11 +327,7 @@ VisualTab:CreateToggle({
                 startHatRainbow()
             end)
 
-            Rayfield:Notify({
-                title = "Rainbow Hat",
-                content = "Enjoy your rainbow Chinese hat!",
-                duration = 3
-            })
+            SafeNotify("Rainbow Hat", "Enjoy your rainbow Chinese hat!", 3)
         else
             if CurrentHat then CurrentHat:Destroy() CurrentHat = nil end
             HatHighlight = nil
@@ -440,11 +456,7 @@ TrollTab:CreateToggle({
             end
         end)
 
-        Rayfield:Notify({
-            title = "FLING ALL",
-            content = value and "Looping fling enabled!" or "Stopped.",
-            duration = 3
-        })
+        SafeNotify("FLING ALL", value and "Looping fling enabled!" or "Stopped.", 3)
     end
 })
 
@@ -456,11 +468,7 @@ TrollTab:CreateButton({
             if flingPlayer(player) then count = count + 1 end
         end
 
-        Rayfield:Notify({
-            title = "FLING ALL",
-            content = "Flung " .. count .. " player(s)!",
-            duration = 4
-        })
+        SafeNotify("FLING ALL", "Flung " .. count .. " player(s)!", 4)
     end
 })
 
@@ -482,7 +490,7 @@ TrollTab:CreateButton({
     name = "Destroy Server",
     callback = function()
         pcall(function() ApiFTAP.DestroyServer(true) end)
-        Rayfield:Notify({ title = "Server Destroyed", content = "Chaos unleashed.", duration = 5 })
+        SafeNotify("Server Destroyed", "Chaos unleashed.", 5)
     end
 })
 
@@ -516,7 +524,6 @@ SettingsTab:CreateToggle({
 SettingsTab:CreateButton({
     name = "Unload / Destroy UI",
     callback = function()
-        -- Stop all custom loops
         flinging = false
         if flingConn then flingConn:Disconnect() end
         if SSConn then SSConn:Disconnect() end
@@ -525,7 +532,6 @@ SettingsTab:CreateButton({
         if SpinConn then SpinConn:Disconnect() end
         if CurrentHat then CurrentHat:Destroy() end
 
-        -- Disable all module features
         pcall(function()
             ApiFTAP.SuperStrength(false)
             ApiFTAP.AntiGrab(false)
@@ -546,15 +552,11 @@ SettingsTab:CreateButton({
         end)
 
         Rayfield:Destroy()
-        Rayfield:Notify({ title = "Unloaded", content = "All features disabled.", duration = 4 })
+        SafeNotify("Unloaded", "All features disabled.", 4)
     end
 })
 
 -- ============================================================
 -- STARTUP NOTIFICATION
 -- ============================================================
-Rayfield:Notify({
-    title = "FTAP OP Exploits Loaded!",
-    content = "Press 'K' to toggle the UI. Fling + Visuals fixed!",
-    duration = 8
-})
+SafeNotify("FTAP OP Exploits Loaded!", "Press 'K' to toggle the UI. Errors fixed!", 8)
