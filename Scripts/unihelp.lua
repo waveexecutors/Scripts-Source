@@ -155,3 +155,20 @@ tw(M,.3,{Size=UDim2.new(0,0,0,0),Position=UDim2.new(0,M.AbsolutePosition.X+170,0
 fi=n("TextButton",{Size=UDim2.new(0,50,0,50),Position=UDim2.new(0,20,.5,-25),BackgroundColor3=A,Text="Δ",TextColor3=Color3.new(1,1,1),Font=Enum.Font.GothamBold,TextSize=22,AutoButtonColor=false,Parent=SG})
 n("UICorner",{CornerRadius=UDim.new(0,25),Parent=fi}) sh(fi,.5)
 task.spawn(function() while fi and fi.Parent do tw(fi,1,{Size=UDim2.new(0,54,0,54),Position=UDim2.new(0,18,.5,-27)},Enum.EasingStyle.Sine,Enum.Easing
+
+            drag(M,TB)
+
+-- Entrance
+M.Size=UDim2.new(0,0,0,0) M.Position=UDim2.new(.5,0,.5,0) task.wait(.05)
+tw(M,.4,{Size=UDim2.new(0,340,0,480),Position=UDim2.new(.5,-170,.5,-240)},Enum.EasingStyle.Back,Enum.EasingDirection.Out)
+
+if workspace.CurrentCamera.ViewportSize.X<400 then M.Size=UDim2.new(0,320,0,440) M.Position=UDim2.new(.5,-160,.5,-220) end
+
+local function notify(ti,tx,du)
+local no=n("Frame",{Size=UDim2.new(0,260,0,60),Position=UDim2.new(.5,-130,1,20),BackgroundColor3=B2,BorderSizePixel=0,Parent=SG})
+n("UICorner",{CornerRadius=UDim.new(0,12),Parent=no}) n("UIStroke",{Color=A,Thickness=1,Transparency=.3,Parent=no}) sh(no,.5)
+n("TextLabel",{Size=UDim2.new(1,-20,0,20),Position=UDim2.new(0,14,0,10),BackgroundTransparency=1,Text=ti,TextColor3=T,Font=Enum.Font.GothamBold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left,Parent=no})
+n("TextLabel",{Size=UDim2.new(1,-20,0,18),Position=UDim2.new(0,14,0,30),BackgroundTransparency=1,Text=tx,TextColor3=TD,Font=Enum.Font.Gotham,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,Parent=no})
+tw(no,.3,{Position=UDim2.new(.5,-130,1,-80)},Enum.EasingStyle.Back,Enum.EasingDirection.Out) task.wait(du or 3) tw(no,.3,{Position=UDim2.new(.5,-130,1,20)},Enum.EasingStyle.Back,Enum.EasingDirection.In) task.wait(.3) no:Destroy() end
+notify("Delta Suite","Loaded successfully! 🚀",3)
+print("[Delta Suite] Loaded!")
