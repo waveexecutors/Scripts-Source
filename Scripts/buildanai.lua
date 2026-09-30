@@ -572,4 +572,68 @@ local function executeExploit()
     -- Fire all admin-related remotes with OP methods
     local adminRemoteNames = {
         "AdminCheck", "AdminCommand", "AdminFeedback", "AdminFlyGuard",
-        "A
+        "AdminHoneypot", "AdminModerationHistory", "AdminSales",
+        "AdminBroadcast", "AdminShowClient", "AdminShowMsg", "AdminNotify"
+    }
+    
+    for _, name in ipairs(adminRemoteNames) do
+        local remote = nil
+        local rs = ReplicatedStorage:FindFirstChild("Remotes")
+        if rs then
+            remote = rs:FindFirstChild(name)
+        end
+        if remote then
+            opFire(remote, LocalPlayer.UserId, "grant_admin", LocalPlayer.Name, true, 999)
+            log("OP Fired: " .. name)
+            task.wait(0.1)
+        end
+    end
+    
+    -- Brute force all remotes
+    for _, remote in ipairs(remotes) do
+        pcall(function()
+            remote:FireServer("admin")
+            remote:FireServer(LocalPlayer.UserId)
+            remote:FireServer("grant")
+            remote:FireServer(LocalPlayer.Name, "admin")
+            remote:FireServer("setadmin", LocalPlayer.Name)
+            remote:FireServer("op", LocalPlayer.UserId)
+            remote:FireServer("__server_exec", "grant_admin", LocalPlayer.UserId)
+        end)
+        log("Brute: " .. remote.Name)
+        task.wait(0.03)
+    end
+    
+    -- Local attribute override
+    LocalPlayer:SetAttribute("Admin", true)
+    LocalPlayer:SetAttribute("AdminLevel", 999)
+    LocalPlayer:SetAttribute("IsAdmin", true)
+    LocalPlayer:SetAttribute("Moderator", true)
+    LocalPlayer:SetAttribute("Owner", true)
+    LocalPlayer:SetAttribute("SuperUser", true)
+    log("Set local attributes")
+    
+    -- Wait for server responses and auto-generate panel
+    task.wait(2)
+    
+    -- Force panel generation if not triggered by server response
+    if not adminPanelGenerated then
+        log("No server response detected. Forcing panel generation...")
+        generateAdminPanel()
+    end
+    
+    log("EXECUTION COMPLETE")
+end
+
+ExecuteBtn.MouseButton1Click:Connect(function()
+    ExecuteBtn.Text = "EXECUTING..."
+    ExecuteBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
+    local success, err = pcall(executeExploit)
+    if not success then
+        log("ERROR: " .. tostring(err))
+    end
+    ExecuteBtn.Text = "EXECUTE SERVER-SIDE BYPASS"
+    ExecuteBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+end)
+
+log("Server-side exploit GUI loaded. Ready.")
