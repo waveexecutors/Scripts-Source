@@ -2,8 +2,8 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "BYPASS | DOORS GOD-TIER OVERPOWERED HUB",
-   LoadingTitle = "BYPASS Ultimate God Mode & Exploits Suite",
+   Name = "BYPASS | DOORS HUB",
+   LoadingTitle = "BYPASS & Exploits Suite",
    LoadingSubtitle = "by bypass.go-live.me",
    ConfigurationSaving = {
       Enabled = true,
