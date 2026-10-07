@@ -655,4 +655,116 @@ RunService.RenderStepped:Connect(function()
             if draw then
                -- Accurate model bounding calculation matching exact player dimensions (head top to foot bottom)
                local cf, size = pChar:GetBoundingBox()
-               local topPos = (cf + Vecto
+               local topPos = (cf + Vector3.new(0, size.Y / 2, 0)).Position
+               local botPos = (cf - Vector3.new(0, size.Y / 2, 0)).Position
+               local topVec, topOnScreen = Camera:WorldToViewportPoint(topPos)
+               local botVec, botOnScreen = Camera:WorldToViewportPoint(botPos)
+               
+               if topOnScreen or botOnScreen then
+                  if not Drawings2D[p] then
+                     local box = Drawing.new("Square")
+                     box.Visible, box.Filled, box.Thickness = false, false, 1.5
+                     
+                     local txt = Drawing.new("Text")
+                     txt.Visible, txt.Size, txt.Center, txt.Outline = false, 12, true, true
+                     txt.Color = Color3.fromRGB(255, 255, 255)
+                     
+                     local healthBg = Drawing.new("Square")
+                     healthBg.Visible, healthBg.Filled, healthBg.Thickness = false, true, 1
+                     healthBg.Color = Color3.fromRGB(0, 0, 0)
+                     
+                     local healthBar = Drawing.new("Square")
+                     healthBar.Visible, healthBar.Filled, healthBar.Thickness = false, true, 1
+                     
+                     Drawings2D[p] = {Drawings = {box, txt, healthBg, healthBar}}
+                  end
+                  
+                  local dList = Drawings2D[p].Drawings
+                  local boxObj, textObj, bgObj, barObj = dList[1], dList[2], dList[3], dList[4]
+                  
+                  local height = math.abs(botVec.Y - topVec.Y)
+                  local width = height / 2.2
+                  local position = Vector2.new(topVec.X - width / 2, topVec.Y)
+                  
+                  local baseColor = States.RainbowESP and getRainbowColor() or (isM and Color3.fromRGB(255, 10, 40) or Color3.fromRGB(20, 240, 140))
+                  
+                  boxObj.Size = Vector2.new(width, height)
+                  boxObj.Position = position
+                  boxObj.Color = baseColor
+                  boxObj.Visible = true
+                  
+                  textObj.Text = isM and "[MURDERER TARGET]" or ("[ " .. string.upper(role) .. " ]")
+                  textObj.Position = Vector2.new(topVec.X, position.Y - 15)
+                  textObj.Visible = true
+                  
+                  local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                  local barHeight = height * healthPercent
+                  
+                  bgObj.Size = Vector2.new(3, height + 2)
+                  bgObj.Position = Vector2.new(position.X - 6, position.Y - 1)
+                  bgObj.Visible = true
+                  
+                  barObj.Size = Vector2.new(1, barHeight)
+                  barObj.Position = Vector2.new(position.X - 5, position.Y + (height - barHeight))
+                  barObj.Color = Color3.fromRGB(255 - (healthPercent * 255), healthPercent * 255, 0)
+                  barObj.Visible = true
+               else
+                  if Drawings2D[p] then
+                     for _, d in ipairs(Drawings2D[p].Drawings) do d.Visible = false end
+                  end
+               end
+            else
+               if Drawings2D[p] then
+                  for _, d in ipairs(Drawings2D[p].Drawings) do d.Visible = false end
+               end
+            end
+         end
+      end
+
+      if States.Coin2D then
+         local cont = Workspace:FindFirstChild("CoinContainer") or Workspace:FindFirstChild("Coins")
+         if cont then
+            for _, c in ipairs(cont:GetChildren()) do
+               local part = c:IsA("Model") and c.PrimaryPart or (c:IsA("BasePart") and c)
+               if part then
+                  local v, onScreen = Camera:WorldToViewportPoint(part.Position)
+                  local key = "Coin_" .. c.Name
+                  if onScreen then
+                     if not Drawings2D[key] then
+                        local txt = Drawing.new("Text")
+                        txt.Visible, txt.Size, txt.Center, txt.Outline, txt.Color, txt.Text = false, 11, true, true, Color3.fromRGB(255, 215, 0), "$"
+                        Drawings2D[key] = {Drawings = {txt}}
+                     end
+                     local t = Drawings2D[key].Drawings[1]
+                     t.Position, t.Visible = Vector2.new(v.X, v.Y), true
+                  elseif Drawings2D[key] then
+                     Drawings2D[key].Drawings[1].Visible = false
+                  end
+               end
+            end
+         end
+      end
+   else
+      clear2D()
+   end
+
+   if States.Aimbot then
+      local tPart, minDist = nil, math.huge
+      for _, p in ipairs(Players:GetPlayers()) do
+         if p ~= LocalPlayer and p.Character then
+            local _, isM = getPlayerRole(p)
+            if isM and p.Character:FindFirstChild("HumanoidRootPart") then
+               local hrp = p.Character.HumanoidRootPart
+               local v, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+               if onScreen then
+                  local dist = (Vector2.new(v.X, v.Y) - UserInputService:GetMouseLocation()).Magnitude
+                  if dist < minDist then minDist, tPart = dist, hrp end
+               end
+            end
+         end
+      end
+      if tPart then Camera.CFrame = CFrame.new(Camera.CFrame.Position, tPart.Position) end
+   end
+end)
+
+Rayfield:LoadConfiguration()
