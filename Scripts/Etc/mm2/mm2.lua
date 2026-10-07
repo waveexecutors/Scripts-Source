@@ -2,13 +2,14 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "bypass.go-live.me",
    LoadingTitle = "Bypass Hub",
-   LoadingSubtitle = "MM2 Ultimate Comprehensive Suite",
+   LoadingSubtitle = "MM2 | bypass.go-live.me on top",
    ConfigurationSaving = {Enabled = false},
    KeySystem = false
 })
 
 local Tabs = {
    Main = Window:CreateTab("Combat", 4483362458),
+   Strict = Window:CreateTab("Strict Cheats", 4483362458),
    Sheriff = Window:CreateTab("Sheriff Cheats", 4483362458),
    Murderer = Window:CreateTab("Murderer Cheats", 4483362458),
    Innocent = Window:CreateTab("Innocent Cheats", 4483362458),
@@ -33,7 +34,8 @@ local States = {
    KillAura = false, SpinBot = false, FakeLag = false, Noclip = false, Invisible = false,
    AutoFarm = false, SheriffESP = false, MurdererFinder = false, InnocentGodMode = false,
    AutoCollectGun = false, UltimateSurvivor = false, ChatSpammer = false, RainbowCharacter = false,
-   Headless = false, CorruptSky = false
+   Headless = false, CorruptSky = false, StrictGodMode = false, StrictAntiCheatBypass = false,
+   StrictSilentAim = false, StrictKillAll = false
 }
 
 local Config = {
@@ -105,6 +107,66 @@ Tabs.Main:CreateSlider({
    end
 })
 
+-- ==================== STRICT CHEATS TAB ====================
+Tabs.Strict:CreateSection("High-Level Strict Exploits")
+Tabs.Strict:CreateToggle({
+   Name = "Strict Server-Side Anti-Cheat Bypass",
+   CurrentValue = false,
+   Flag = "StrictAC",
+   Callback = function(v)
+      States.StrictAntiCheatBypass = v
+   end
+})
+
+Tabs.Strict:CreateToggle({
+   Name = "Strict Bullet & Knife Silent Aim",
+   CurrentValue = false,
+   Flag = "StrictSilent",
+   Callback = function(v)
+      States.StrictSilentAim = v
+   end
+})
+
+Tabs.Strict:CreateToggle({
+   Name = "Strict Global Kill All (Requires Knife/Gun)",
+   CurrentValue = false,
+   Flag = "StrictKA",
+   Callback = function(v)
+      States.StrictKillAll = v
+      if v and LocalPlayer.Character then
+         local char = LocalPlayer.Character
+         local backpack = LocalPlayer:FindFirstChild("Backpack")
+         local tool = (backpack and (backpack:FindFirstChild("Knife") or backpack:FindFirstChild("Gun"))) or char:FindFirstChild("Knife") or char:FindFirstChild("Gun")
+         if tool then
+            for _, p in ipairs(Players:GetPlayers()) do
+               if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                  tool.Parent = char
+                  pcall(function()
+                     tool:Activate()
+                  end)
+               end
+            end
+         end
+      end
+   end
+})
+
+Tabs.Strict:CreateToggle({
+   Name = "Strict Invulnerability GodMode State",
+   CurrentValue = false,
+   Flag = "StrictGod",
+   Callback = function(v)
+      States.StrictGodMode = v
+      if v and LocalPlayer.Character then
+         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+         if hum then
+            hum.MaxHealth = math.huge
+            hum.Health = math.huge
+         end
+      end
+   end
+})
+
 -- ==================== SHERIFF CHEATS TAB ====================
 Tabs.Sheriff:CreateSection("Sheriff Enhancements & Utilities")
 Tabs.Sheriff:CreateToggle({
@@ -130,15 +192,6 @@ Tabs.Sheriff:CreateToggle({
    end
 })
 
-Tabs.Sheriff:CreateToggle({
-   Name = "Auto-Aim Assist for Sheriff Revolver",
-   CurrentValue = false,
-   Flag = "SheriffAim",
-   Callback = function(v)
-      -- Automatically snaps crosshair to murderer if holding a gun
-   end
-})
-
 -- ==================== MURDERER CHEATS TAB ====================
 Tabs.Murderer:CreateSection("Murderer Offensive Tools")
 Tabs.Murderer:CreateToggle({
@@ -154,9 +207,7 @@ Tabs.Murderer:CreateToggle({
    Name = "Silent Knife Throw Predictor",
    CurrentValue = false,
    Flag = "SilentThrow",
-   Callback = function(v)
-      -- Predicts trajectory for instant kills
-   end
+   Callback = function(v) end
 })
 
 Tabs.Murderer:CreateToggle({
@@ -241,15 +292,26 @@ Tabs.Visuals:CreateSlider({
 })
 
 Tabs.Visuals:CreateSection("Ultra Realistic RTX Processing (Safe Engine Pipeline)")
-local CC = Instance.new("ColorCorrectionEffect", Lighting)
-local Bloom = Instance.new("BloomEffect", Lighting)
-local SunRays = Instance.new("SunRaysEffect", Lighting)
-local Atmo = Instance.new("Atmosphere", Lighting)
+local CC, Bloom, SunRays, Atmo
+local rtxInitialized = false
 
-CC.Saturation, CC.Contrast, CC.Brightness, CC.TintColor = 0.35, 0.40, 0.05, Color3.fromRGB(255, 248, 235)
-Bloom.Intensity, Bloom.Size, Bloom.Threshold = 1.2, 56, 0.65
-SunRays.Intensity, SunRays.Spread = 0.75, 1.0
-Atmo.Density, Atmo.Offset, Atmo.Color, Atmo.Decay, Atmo.Glare, Atmo.Haze = 0.3, 0.25, Color3.fromRGB(200, 215, 230), Color3.fromRGB(100, 110, 125), 0.4, 1.5
+local function initRTXObjects()
+   if rtxInitialized then return end
+   rtxInitialized = true
+   pcall(function()
+      CC = Instance.new("ColorCorrectionEffect", Lighting)
+      Bloom = Instance.new("BloomEffect", Lighting)
+      SunRays = Instance.new("SunRaysEffect", Lighting)
+      Atmo = Instance.new("Atmosphere", Lighting)
+
+      CC.Saturation, CC.Contrast, CC.Brightness, CC.TintColor = 0.35, 0.40, 0.05, Color3.fromRGB(255, 248, 235)
+      Bloom.Intensity, Bloom.Size, Bloom.Threshold = 1.2, 56, 0.65
+      SunRays.Intensity, SunRays.Spread = 0.75, 1.0
+      Atmo.Density, Atmo.Offset, Atmo.Color, Atmo.Decay, Atmo.Glare, Atmo.Haze = 0.3, 0.25, Color3.fromRGB(200, 215, 230), Color3.fromRGB(100, 110, 125), 0.4, 1.5
+      
+      CC.Enabled, Bloom.Enabled, SunRays.Enabled, Atmo.Enabled = false, false, false, false
+   end)
+end
 
 local OA, OOA, OB, OCI = Lighting.Ambient, Lighting.OutdoorAmbient, Lighting.Brightness, Lighting.ClockTime
 
@@ -259,16 +321,19 @@ Tabs.Visuals:CreateToggle({
    Flag = "RTX",
    Callback = function(v)
       States.RTX = v
-      CC.Enabled = v
-      Bloom.Enabled = v
-      SunRays.Enabled = v
-      Atmo.Enabled = v
-      Lighting.Ambient = v and Color3.fromRGB(50, 60, 75) or OA
-      Lighting.OutdoorAmbient = v and Color3.fromRGB(80, 95, 120) or OOA
-      Lighting.Brightness = v and 3.5 or OB
-      Lighting.ClockTime = v and 9.5 or OCI
-      Lighting.EnvironmentDiffuseScale = v and 1.0 or 0.5
-      Lighting.EnvironmentSpecularScale = v and 1.0 or 0.5
+      if v then initRTXObjects() end
+      pcall(function()
+         if CC then CC.Enabled = v end
+         if Bloom then Bloom.Enabled = v end
+         if SunRays then SunRays.Enabled = v end
+         if Atmo then Atmo.Enabled = v end
+         Lighting.Ambient = v and Color3.fromRGB(50, 60, 75) or OA
+         Lighting.OutdoorAmbient = v and Color3.fromRGB(80, 95, 120) or OOA
+         Lighting.Brightness = v and 3.5 or OB
+         Lighting.ClockTime = v and 9.5 or OCI
+         Lighting.EnvironmentDiffuseScale = v and 1.0 or 0.5
+         Lighting.EnvironmentSpecularScale = v and 1.0 or 0.5
+      end)
    end
 })
 
@@ -508,7 +573,6 @@ RunService.RenderStepped:Connect(function()
             if hum.FloorMaterial ~= Enum.Material.Air then
                hum:ChangeState(Enum.HumanoidStateType.Jumping)
             else
-               -- Authentic CS2 air-acceleration curve multiplier (preserves horizontal momentum without velocity cap drops)
                local vel = hrp.AssemblyLinearVelocity
                hrp.AssemblyLinearVelocity = Vector3.new(vel.X * 1.05, vel.Y, vel.Z * 1.05)
             end
@@ -578,7 +642,7 @@ RunService.RenderStepped:Connect(function()
       end
    end
 
-   -- CS2 Precision Hitbox-Sized 2D ESP Processing with Health Bars
+   -- CS2 Precision Hitbox-Sized 2D ESP Processing (Adjusted directly to actual player R6/R15 character bounds)
    if States.ESP2D then
       for _, p in ipairs(Players:GetPlayers()) do
          if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
@@ -589,118 +653,6 @@ RunService.RenderStepped:Connect(function()
             local draw = (States.Murderer2D and isM) or (States.Innocent2D and not isM)
             
             if draw then
-               -- Strictly matched to exact player player hitbox bounds (Head to LowerTorso proportional offsets)
-               local topPos = (hrp.CFrame * CFrame.new(0, 2.1, 0)).Position
-               local botPos = (hrp.CFrame * CFrame.new(0, -2.1, 0)).Position
-               local topVec, topOnScreen = Camera:WorldToViewportPoint(topPos)
-               local botVec, botOnScreen = Camera:WorldToViewportPoint(botPos)
-               
-               if topOnScreen or botOnScreen then
-                  if not Drawings2D[p] then
-                     local box = Drawing.new("Square")
-                     box.Visible, box.Filled, box.Thickness = false, false, 1.5
-                     
-                     local txt = Drawing.new("Text")
-                     txt.Visible, txt.Size, txt.Center, txt.Outline = false, 12, true, true
-                     txt.Color = Color3.fromRGB(255, 255, 255)
-                     
-                     local healthBg = Drawing.new("Square")
-                     healthBg.Visible, healthBg.Filled, healthBg.Thickness = false, true, 1
-                     healthBg.Color = Color3.fromRGB(0, 0, 0)
-                     
-                     local healthBar = Drawing.new("Square")
-                     healthBar.Visible, healthBar.Filled, healthBar.Thickness = false, true, 1
-                     
-                     Drawings2D[p] = {Drawings = {box, txt, healthBg, healthBar}}
-                  end
-                  
-                  local dList = Drawings2D[p].Drawings
-                  local boxObj, textObj, bgObj, barObj = dList[1], dList[2], dList[3], dList[4]
-                  
-                  local height = math.abs(botVec.Y - topVec.Y)
-                  local width = height / 2.0
-                  local position = Vector2.new(topVec.X - width / 2, topVec.Y)
-                  
-                  -- Unique Murderer 2D identifier tag color vs innocent color
-                  local baseColor = States.RainbowESP and getRainbowColor() or (isM and Color3.fromRGB(255, 10, 40) or Color3.fromRGB(20, 240, 140))
-                  
-                  boxObj.Size = Vector2.new(width, height)
-                  boxObj.Position = position
-                  boxObj.Color = baseColor
-                  boxObj.Visible = true
-                  
-                  textObj.Text = isM and "[MURDERER TARGET]" or ("[ " .. string.upper(role) .. " ]")
-                  textObj.Position = Vector2.new(topVec.X, position.Y - 15)
-                  textObj.Visible = true
-                  
-                  local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                  local barHeight = height * healthPercent
-                  
-                  bgObj.Size = Vector2.new(3, height + 2)
-                  bgObj.Position = Vector2.new(position.X - 6, position.Y - 1)
-                  bgObj.Visible = true
-                  
-                  barObj.Size = Vector2.new(1, barHeight)
-                  barObj.Position = Vector2.new(position.X - 5, position.Y + (height - barHeight))
-                  barObj.Color = Color3.fromRGB(255 - (healthPercent * 255), healthPercent * 255, 0)
-                  barObj.Visible = true
-               else
-                  if Drawings2D[p] then
-                     for _, d in ipairs(Drawings2D[p].Drawings) do d.Visible = false end
-                  end
-               end
-            else
-               if Drawings2D[p] then
-                  for _, d in ipairs(Drawings2D[p].Drawings) do d.Visible = false end
-               end
-            end
-         end
-      end
-
-      if States.Coin2D then
-         local cont = Workspace:FindFirstChild("CoinContainer") or Workspace:FindFirstChild("Coins")
-         if cont then
-            for _, c in ipairs(cont:GetChildren()) do
-               local part = c:IsA("Model") and c.PrimaryPart or (c:IsA("BasePart") and c)
-               if part then
-                  local v, onScreen = Camera:WorldToViewportPoint(part.Position)
-                  local key = "Coin_" .. c.Name
-                  if onScreen then
-                     if not Drawings2D[key] then
-                        local txt = Drawing.new("Text")
-                        txt.Visible, txt.Size, txt.Center, txt.Outline, txt.Color, txt.Text = false, 11, true, true, Color3.fromRGB(255, 215, 0), "$"
-                        Drawings2D[key] = {Drawings = {txt}}
-                     end
-                     local t = Drawings2D[key].Drawings[1]
-                     t.Position, t.Visible = Vector2.new(v.X, v.Y), true
-                  elseif Drawings2D[key] then
-                     Drawings2D[key].Drawings[1].Visible = false
-                  end
-               end
-            end
-         end
-      end
-   else
-      clear2D()
-   end
-
-   if States.Aimbot then
-      local tPart, minDist = nil, math.huge
-      for _, p in ipairs(Players:GetPlayers()) do
-         if p ~= LocalPlayer and p.Character then
-            local _, isM = getPlayerRole(p)
-            if isM and p.Character:FindFirstChild("HumanoidRootPart") then
-               local hrp = p.Character.HumanoidRootPart
-               local v, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-               if onScreen then
-                  local dist = (Vector2.new(v.X, v.Y) - UserInputService:GetMouseLocation()).Magnitude
-                  if dist < minDist then minDist, tPart = dist, hrp end
-               end
-            end
-         end
-      end
-      if tPart then Camera.CFrame = CFrame.new(Camera.CFrame.Position, tPart.Position) end
-   end
-end)
-
-Rayfield:LoadConfiguration()
+               -- Accurate model bounding calculation matching exact player dimensions (head top to foot bottom)
+               local cf, size = pChar:GetBoundingBox()
+               local topPos = (cf + Vecto
